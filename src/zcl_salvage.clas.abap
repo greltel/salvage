@@ -15,25 +15,40 @@ CLASS zcl_salvage DEFINITION
       "! what the ABAP Dictionary defines for the column.
       BEGIN OF column_settings,
         "! Header text; used as short, medium and long header, cut to 10, 20 and 40 characters
-        text         TYPE string,
+        text            TYPE string,
         "! Quick info of the column header
-        tooltip      TYPE string,
+        tooltip         TYPE string,
         "! Output width in characters; ignored when {@link zcl_salvage.METH:optimized} is used
-        width        TYPE i,
+        width           TYPE i,
         "! Position from the left, starting at 1
-        position     TYPE i,
+        position        TYPE i,
         "! abap_true: hidden at start; users can show the column again through the layout
-        is_hidden    TYPE abap_bool,
+        is_hidden       TYPE abap_bool,
         "! abap_true: never shown, not even in the layout dialog
-        is_technical TYPE abap_bool,
+        is_technical    TYPE abap_bool,
         "! abap_true: key column, shown in the key colour
-        is_key       TYPE abap_bool,
+        is_key          TYPE abap_bool,
         "! abap_true: cells are links; a click calls {@link zif_salvage_events.METH:on_link_click}
-        is_hotspot   TYPE abap_bool,
-        "! abap_true: abap_true and abap_false are shown as a checkbox the user cannot change
-        is_checkbox  TYPE abap_bool,
+        is_hotspot      TYPE abap_bool,
+        "! abap_true: abap_true and abap_false are shown as a checkbox the user cannot change.
+        "! Together with is_hotspot a click calls {@link zif_salvage_events.METH:on_link_click},
+        "! where the handler may switch the value in the table and call
+        "! {@link zcl_salvage.METH:refresh}.
+        is_checkbox     TYPE abap_bool,
         "! abap_true: cells hold icon codes, for example constants of type pool ICON
-        is_icon      TYPE abap_bool,
+        is_icon         TYPE abap_bool,
+        "! abap_true: cells with the value zero stay empty
+        is_zero_hidden  TYPE abap_bool,
+        "! Column that holds the unit of this quantity column. Needed when the line type does
+        "! not define the unit itself, for example a structure declared in the report.
+        unit_column     TYPE lvc_qfname,
+        "! Column that holds the currency of this amount column; see unit_column
+        currency_column TYPE lvc_cfname,
+        "! Output format: ==ALPHA for the conversion exit ALPHA, or a mask such as __:__
+        edit_mask       TYPE lvc_edtmsk,
+        "! Colour of the whole column, for example VALUE #( col = col_positive ) with the
+        "! constants of type pool COL
+        color           TYPE lvc_s_colo,
       END OF column_settings.
 
     TYPES:
@@ -74,6 +89,30 @@ CLASS zcl_salvage DEFINITION
         "! Quick info shown when the mouse rests on the button
         tooltip TYPE string,
       END OF button_settings.
+
+    TYPES:
+      "! One filter condition, for {@link zcl_salvage.METH:filter_by}: a line of a ranges table
+      "! with is_excluded in place of the sign.
+      BEGIN OF filter_settings,
+        "! abap_true: drops the rows that meet the condition (sign E); initial: keeps them (sign I)
+        is_excluded TYPE abap_bool,
+        "! Comparison, for example EQ, NE, GT, BT or CP; initial: EQ
+        option      TYPE salv_de_selopt_option,
+        "! Value in internal format, for example 20261231 for a date
+        low         TYPE salv_de_selopt_low,
+        "! Upper value, for the comparisons BT and NB
+        high        TYPE salv_de_selopt_high,
+      END OF filter_settings.
+
+    TYPES:
+      "! Lines of text above or below the list, for {@link zcl_salvage.METH:top_of_list} and
+      "! {@link zcl_salvage.METH:end_of_list}.
+      BEGIN OF text_settings,
+        "! First line, in bold
+        heading TYPE string,
+        "! Further lines, one per entry
+        lines   TYPE string_table,
+      END OF text_settings.
 
     "! Selection mode, for {@link zcl_salvage.METH:selection}. The values are the components of
     "! {@link zcl_salvage.DATA:selection_modes}.
@@ -180,13 +219,71 @@ CLASS zcl_salvage DEFINITION
                 settings    TYPE sort_settings OPTIONAL
       RETURNING VALUE(self) TYPE REF TO zcl_salvage.
 
-    "! Adds a total line for a numeric column. Amounts and quantities with a currency or unit
-    "! column are totalled per currency or unit.
+    "! Adds a total line for a numeric column: the sum, or the average, minimum or maximum.
+    "! Amounts and quantities with a currency or unit column are totalled per currency or unit.
     "!
     "! @parameter name | Name of the column
+    "! @parameter kind | A constant of {@link if_salv_c_aggregation}: TOTAL (the default),
+    "!                   AVERAGE, MINIMUM or MAXIMUM
     "! @parameter self | This list, for the next call of the chain
     METHODS total
       IMPORTING name        TYPE csequence
+                kind        TYPE salv_de_aggregation DEFAULT if_salv_c_aggregation=>total
+      RETURNING VALUE(self) TYPE REF TO zcl_salvage.
+
+    "! Filters the rows when the list is shown; users can change or delete the filter. Call it
+    "! again for the same column to add a further condition, as in a ranges table.
+    "!
+    "! @parameter name     | Name of the column
+    "! @parameter settings | The condition
+    "! @parameter self     | This list, for the next call of the chain
+    METHODS filter_by
+      IMPORTING name        TYPE csequence
+                settings    TYPE filter_settings
+      RETURNING VALUE(self) TYPE REF TO zcl_salvage.
+
+    "! Takes the colours of rows and cells from a column of type LVC_T_SCOL. A line in it with
+    "! an empty FNAME colours the whole row, a line with a column name in FNAME only that cell.
+    "! The colour column itself is not shown.
+    "!
+    "! @parameter name | Name of the colour column
+    "! @parameter self | This list, for the next call of the chain
+    METHODS colors_from
+      IMPORTING name        TYPE csequence
+      RETURNING VALUE(self) TYPE REF TO zcl_salvage.
+
+    "! Shows a traffic light in every row, taken from a column of type C length 1: the values
+    "! 1, 2 and 3 show a red, yellow and green light instead of the value.
+    "!
+    "! @parameter name | Name of the column with the light values
+    "! @parameter self | This list, for the next call of the chain
+    METHODS lights_from
+      IMPORTING name        TYPE csequence
+      RETURNING VALUE(self) TYPE REF TO zcl_salvage.
+
+    "! Hides every column that is empty in all rows. Users can show it again through the
+    "! layout. Reads the rows once per column when the list is shown; an empty table hides
+    "! nothing.
+    "!
+    "! @parameter self | This list, for the next call of the chain
+    METHODS hide_empty_columns
+      RETURNING VALUE(self) TYPE REF TO zcl_salvage.
+
+    "! Sets lines of text above the list. SAP shows them in full screen and on the printout; a
+    "! list in a container shows them on the printout only.
+    "!
+    "! @parameter settings | Heading and further lines
+    "! @parameter self     | This list, for the next call of the chain
+    METHODS top_of_list
+      IMPORTING settings    TYPE text_settings
+      RETURNING VALUE(self) TYPE REF TO zcl_salvage.
+
+    "! Sets lines of text below the list, shown like those of {@link zcl_salvage.METH:top_of_list}.
+    "!
+    "! @parameter settings | Heading and further lines
+    "! @parameter self     | This list, for the next call of the chain
+    METHODS end_of_list
+      IMPORTING settings    TYPE text_settings
       RETURNING VALUE(self) TYPE REF TO zcl_salvage.
 
     "! Changes the layout (variant) handling. Without this call users can save layouts for
@@ -282,7 +379,19 @@ CLASS zcl_salvage DEFINITION
       END OF sort_criterion.
     TYPES sort_criteria TYPE STANDARD TABLE OF sort_criterion WITH EMPTY KEY.
 
-    TYPES column_names TYPE STANDARD TABLE OF lvc_fname WITH EMPTY KEY.
+    TYPES:
+      BEGIN OF column_total,
+        name TYPE lvc_fname,
+        kind TYPE salv_de_aggregation,
+      END OF column_total.
+    TYPES column_totals TYPE STANDARD TABLE OF column_total WITH EMPTY KEY.
+
+    TYPES:
+      BEGIN OF filter_condition,
+        name     TYPE lvc_fname,
+        settings TYPE filter_settings,
+      END OF filter_condition.
+    TYPES filter_conditions TYPE STANDARD TABLE OF filter_condition WITH EMPTY KEY.
 
     TYPES:
       BEGIN OF own_button,
@@ -320,23 +429,40 @@ CLASS zcl_salvage DEFINITION
         end_line     TYPE i VALUE 25,
       END OF default_popup.
 
-    DATA table           TYPE REF TO data.
-    DATA program         TYPE syrepid.
-    DATA output          TYPE output_mode.
-    DATA header_text     TYPE string.
-    DATA is_striped      TYPE abap_bool.
-    DATA is_optimized    TYPE abap_bool.
-    DATA changed_columns TYPE column_changes.
-    DATA sorts           TYPE sort_criteria.
-    DATA totals          TYPE column_names.
-    DATA layout_options  TYPE layout_settings.
-    DATA row_selection   TYPE selection_mode.
-    DATA buttons         TYPE own_buttons.
-    DATA handler         TYPE REF TO zif_salvage_events.
-    DATA popup_area      TYPE popup_settings.
-    DATA container       TYPE REF TO cl_gui_container.
-    DATA salv            TYPE REF TO cl_salv_table.
-    DATA is_displayed    TYPE abap_bool.
+    " Signs of a filter condition, and the option of a condition that leaves it initial
+    CONSTANTS:
+      BEGIN OF filter_values,
+        including      TYPE salv_de_selopt_sign   VALUE 'I',
+        excluding      TYPE salv_de_selopt_sign   VALUE 'E',
+        default_option TYPE salv_de_selopt_option VALUE 'EQ',
+      END OF filter_values.
+
+    " Text above and below the list is one column of a form grid, one line per row
+    CONSTANTS text_form_column TYPE i VALUE 1.
+
+    DATA table               TYPE REF TO data.
+    DATA program             TYPE syrepid.
+    DATA output              TYPE output_mode.
+    DATA header_text         TYPE string.
+    DATA is_striped          TYPE abap_bool.
+    DATA is_optimized        TYPE abap_bool.
+    DATA hides_empty_columns TYPE abap_bool.
+    DATA changed_columns     TYPE column_changes.
+    DATA color_column        TYPE lvc_fname.
+    DATA light_column        TYPE lvc_fname.
+    DATA sorts               TYPE sort_criteria.
+    DATA totals              TYPE column_totals.
+    DATA filters             TYPE filter_conditions.
+    DATA top_text            TYPE text_settings.
+    DATA end_text            TYPE text_settings.
+    DATA layout_options      TYPE layout_settings.
+    DATA row_selection       TYPE selection_mode.
+    DATA buttons             TYPE own_buttons.
+    DATA handler             TYPE REF TO zif_salvage_events.
+    DATA popup_area          TYPE popup_settings.
+    DATA container           TYPE REF TO cl_gui_container.
+    DATA salv                TYPE REF TO cl_salv_table.
+    DATA is_displayed        TYPE abap_bool.
 
     METHODS check_configuration
       RAISING zcx_salvage_error.
@@ -358,6 +484,24 @@ CLASS zcl_salvage DEFINITION
 
     METHODS apply_columns
       RAISING zcx_salvage_error.
+
+    METHODS apply_default_texts
+      IMPORTING columns TYPE REF TO cl_salv_columns_table.
+
+    METHODS apply_color_column
+      IMPORTING columns TYPE REF TO cl_salv_columns_table
+      RAISING   zcx_salvage_error.
+
+    METHODS apply_light_column
+      IMPORTING columns TYPE REF TO cl_salv_columns_table
+      RAISING   zcx_salvage_error.
+
+    METHODS apply_empty_columns
+      IMPORTING columns TYPE REF TO cl_salv_columns_table.
+
+    METHODS is_empty_column
+      IMPORTING name          TYPE lvc_fname
+      RETURNING VALUE(result) TYPE abap_bool.
 
     METHODS apply_column
       IMPORTING columns TYPE REF TO cl_salv_columns_table
@@ -386,11 +530,34 @@ CLASS zcl_salvage DEFINITION
       IMPORTING settings      TYPE column_settings
       RETURNING VALUE(result) TYPE salv_de_celltype.
 
+    METHODS apply_column_format
+      IMPORTING column   TYPE REF TO cl_salv_column_table
+                settings TYPE column_settings.
+
+    METHODS apply_column_references
+      IMPORTING column   TYPE REF TO cl_salv_column_table
+                settings TYPE column_settings
+      RAISING   zcx_salvage_error.
+
     METHODS apply_sorts
       RAISING zcx_salvage_error.
 
     METHODS apply_totals
       RAISING zcx_salvage_error.
+
+    METHODS apply_filters
+      RAISING zcx_salvage_error.
+
+    METHODS add_filter_condition
+      IMPORTING salv_filters TYPE REF TO cl_salv_filters
+                condition    TYPE filter_condition
+      RAISING   cx_salv_error.
+
+    METHODS apply_list_texts.
+
+    METHODS form_of
+      IMPORTING text          TYPE text_settings
+      RETURNING VALUE(result) TYPE REF TO cl_salv_form_layout_grid.
 
     METHODS raise_unknown_column
       IMPORTING name     TYPE lvc_fname
@@ -496,7 +663,39 @@ CLASS zcl_salvage IMPLEMENTATION.
   ENDMETHOD.
 
   METHOD total.
-    INSERT CONV lvc_fname( to_upper( name ) ) INTO TABLE totals.
+    INSERT VALUE #( name = to_upper( name )
+                    kind = kind ) INTO TABLE totals.
+    self = me.
+  ENDMETHOD.
+
+  METHOD filter_by.
+    INSERT VALUE #( name     = to_upper( name )
+                    settings = settings ) INTO TABLE filters.
+    self = me.
+  ENDMETHOD.
+
+  METHOD colors_from.
+    color_column = to_upper( name ).
+    self = me.
+  ENDMETHOD.
+
+  METHOD lights_from.
+    light_column = to_upper( name ).
+    self = me.
+  ENDMETHOD.
+
+  METHOD hide_empty_columns.
+    hides_empty_columns = abap_true.
+    self = me.
+  ENDMETHOD.
+
+  METHOD top_of_list.
+    top_text = settings.
+    self = me.
+  ENDMETHOD.
+
+  METHOD end_of_list.
+    end_text = settings.
     self = me.
   ENDMETHOD.
 
@@ -617,9 +816,11 @@ CLASS zcl_salvage IMPLEMENTATION.
     apply_columns( ).
     apply_sorts( ).
     apply_totals( ).
+    apply_filters( ).
     apply_selection( ).
     apply_layout( ).
     apply_functions( ).
+    apply_list_texts( ).
     apply_popup( ).
   ENDMETHOD.
 
@@ -638,9 +839,77 @@ CLASS zcl_salvage IMPLEMENTATION.
     IF is_optimized = abap_true.
       salv_columns->set_optimize( ).
     ENDIF.
+    apply_default_texts( salv_columns ).
+    apply_color_column( salv_columns ).
+    apply_light_column( salv_columns ).
+    apply_empty_columns( salv_columns ).
     LOOP AT changed_columns INTO DATA(change).
       apply_column( columns = salv_columns
                     change  = change ).
+    ENDLOOP.
+  ENDMETHOD.
+
+  METHOD apply_default_texts.
+    " A component typed without a data element has no header; its name is better than none
+    LOOP AT columns->get( ) INTO DATA(entry).
+      IF entry-r_column->get_short_text( ) IS INITIAL
+          AND entry-r_column->get_medium_text( ) IS INITIAL
+          AND entry-r_column->get_long_text( ) IS INITIAL.
+        entry-r_column->set_short_text( CONV #( entry-columnname ) ).
+        entry-r_column->set_medium_text( CONV #( entry-columnname ) ).
+        entry-r_column->set_long_text( CONV #( entry-columnname ) ).
+      ENDIF.
+    ENDLOOP.
+  ENDMETHOD.
+
+  METHOD apply_color_column.
+    IF color_column IS INITIAL.
+      RETURN.
+    ENDIF.
+    TRY.
+        columns->set_color_column( color_column ).
+      CATCH cx_salv_data_error INTO DATA(color_error).
+        RAISE EXCEPTION TYPE zcx_salvage_error MESSAGE e013(zsalvage) WITH color_column
+          EXPORTING previous = color_error.
+    ENDTRY.
+  ENDMETHOD.
+
+  METHOD apply_light_column.
+    IF light_column IS INITIAL.
+      RETURN.
+    ENDIF.
+    TRY.
+        columns->set_exception_column( light_column ).
+      CATCH cx_salv_data_error INTO DATA(light_error).
+        RAISE EXCEPTION TYPE zcx_salvage_error MESSAGE e015(zsalvage) WITH light_column
+          EXPORTING previous = light_error.
+    ENDTRY.
+  ENDMETHOD.
+
+  METHOD apply_empty_columns.
+    IF hides_empty_columns = abap_false.
+      RETURN.
+    ENDIF.
+    LOOP AT columns->get( ) INTO DATA(entry).
+      IF is_empty_column( entry-columnname ) = abap_true.
+        entry-r_column->set_visible( abap_false ).
+      ENDIF.
+    ENDLOOP.
+  ENDMETHOD.
+
+  METHOD is_empty_column.
+    FIELD-SYMBOLS <rows> TYPE STANDARD TABLE.
+
+    ASSIGN table->* TO <rows>.
+    ASSERT sy-subrc = 0.
+    " Without rows every column would count as empty, and the list would have none left
+    result = xsdbool( <rows> IS NOT INITIAL ).
+    LOOP AT <rows> ASSIGNING FIELD-SYMBOL(<row>).
+      ASSIGN COMPONENT name OF STRUCTURE <row> TO FIELD-SYMBOL(<value>).
+      IF sy-subrc <> 0 OR <value> IS NOT INITIAL.
+        result = abap_false.
+        RETURN.
+      ENDIF.
     ENDLOOP.
   ENDMETHOD.
 
@@ -653,6 +922,10 @@ CLASS zcl_salvage IMPLEMENTATION.
                              settings = change-settings ).
     apply_column_kind( column   = salv_column
                        settings = change-settings ).
+    apply_column_format( column   = salv_column
+                         settings = change-settings ).
+    apply_column_references( column   = salv_column
+                             settings = change-settings ).
     IF change-settings-position > 0.
       columns->set_column_position( columnname = change-name
                                     position   = change-settings-position ).
@@ -714,6 +987,37 @@ CLASS zcl_salvage IMPLEMENTATION.
                      ELSE if_salv_c_cell_type=>text ).
   ENDMETHOD.
 
+  METHOD apply_column_format.
+    IF settings-is_zero_hidden = abap_true.
+      column->set_zero( abap_false ).
+    ENDIF.
+    IF settings-edit_mask IS NOT INITIAL.
+      column->set_edit_mask( settings-edit_mask ).
+    ENDIF.
+    IF settings-color IS NOT INITIAL.
+      column->set_color( settings-color ).
+    ENDIF.
+  ENDMETHOD.
+
+  METHOD apply_column_references.
+    DATA reference TYPE lvc_fname.
+
+    TRY.
+        IF settings-unit_column IS NOT INITIAL.
+          reference = to_upper( settings-unit_column ).
+          column->set_quantity_column( reference ).
+        ENDIF.
+        IF settings-currency_column IS NOT INITIAL.
+          reference = to_upper( settings-currency_column ).
+          column->set_currency_column( reference ).
+        ENDIF.
+      CATCH cx_salv_not_found cx_salv_data_error INTO DATA(reference_error).
+        RAISE EXCEPTION TYPE zcx_salvage_error MESSAGE e014(zsalvage)
+          WITH column->get_columnname( ) reference
+          EXPORTING previous = reference_error.
+    ENDTRY.
+  ENDMETHOD.
+
   METHOD apply_sorts.
     DATA(salv_sorts) = salv->get_sorts( ).
     LOOP AT sorts INTO DATA(criterion).
@@ -732,17 +1036,82 @@ CLASS zcl_salvage IMPLEMENTATION.
 
   METHOD apply_totals.
     DATA(aggregations) = salv->get_aggregations( ).
-    LOOP AT totals INTO DATA(name).
+    LOOP AT totals INTO DATA(column_total).
       TRY.
-          aggregations->add_aggregation( columnname  = name
-                                         aggregation = if_salv_c_aggregation=>total ).
+          aggregations->add_aggregation( columnname  = column_total-name
+                                         aggregation = column_total-kind ).
         CATCH cx_salv_not_found INTO DATA(not_found).
-          raise_unknown_column( name     = name
+          raise_unknown_column( name     = column_total-name
                                 previous = not_found ).
         CATCH cx_salv_data_error cx_salv_existing INTO DATA(total_error).
-          RAISE EXCEPTION TYPE zcx_salvage_error MESSAGE e004(zsalvage) WITH name
+          RAISE EXCEPTION TYPE zcx_salvage_error MESSAGE e004(zsalvage) WITH column_total-name
             EXPORTING previous = total_error.
       ENDTRY.
+    ENDLOOP.
+  ENDMETHOD.
+
+  METHOD apply_filters.
+    DATA(salv_filters) = salv->get_filters( ).
+    LOOP AT filters INTO DATA(condition).
+      TRY.
+          add_filter_condition( salv_filters = salv_filters
+                                condition    = condition ).
+        CATCH cx_salv_not_found INTO DATA(not_found).
+          raise_unknown_column( name     = condition-name
+                                previous = not_found ).
+        CATCH cx_salv_error INTO DATA(filter_error).
+          RAISE EXCEPTION TYPE zcx_salvage_error MESSAGE e012(zsalvage) WITH condition-name
+            EXPORTING previous = filter_error.
+      ENDTRY.
+    ENDLOOP.
+  ENDMETHOD.
+
+  METHOD add_filter_condition.
+    DATA(sign) = COND salv_de_selopt_sign( WHEN condition-settings-is_excluded = abap_true
+                                           THEN filter_values-excluding
+                                           ELSE filter_values-including ).
+    DATA(option) = COND salv_de_selopt_option( WHEN condition-settings-option IS INITIAL
+                                               THEN filter_values-default_option
+                                               ELSE condition-settings-option ).
+    TRY.
+        salv_filters->add_filter( columnname = condition-name
+                                  sign       = sign
+                                  option     = option
+                                  low        = condition-settings-low
+                                  high       = condition-settings-high ).
+      CATCH cx_salv_existing.
+        " A further condition for the same column joins its filter, as in a ranges table
+        salv_filters->get_filter( condition-name )->add_selopt( sign   = sign
+                                                                option = option
+                                                                low    = condition-settings-low
+                                                                high   = condition-settings-high ).
+    ENDTRY.
+  ENDMETHOD.
+
+  METHOD apply_list_texts.
+    IF top_text IS NOT INITIAL.
+      salv->set_top_of_list( form_of( top_text ) ).
+    ENDIF.
+    IF end_text IS NOT INITIAL.
+      salv->set_end_of_list( form_of( end_text ) ).
+    ENDIF.
+  ENDMETHOD.
+
+  METHOD form_of.
+    DATA(row) = 0.
+
+    result = NEW #( ).
+    IF text-heading IS NOT INITIAL.
+      row = row + 1.
+      result->create_label( row    = row
+                            column = text_form_column
+                            text   = text-heading ).
+    ENDIF.
+    LOOP AT text-lines INTO DATA(line).
+      row = row + 1.
+      result->create_text( row    = row
+                           column = text_form_column
+                           text   = line ).
     ENDLOOP.
   ENDMETHOD.
 
@@ -904,12 +1273,12 @@ CLASS zcl_salvage IMPLEMENTATION.
 
   METHOD on_salv_double_click.
     handler->on_double_click( row    = row
-                              column = CONV #( column ) ).
+                              column = column ).
   ENDMETHOD.
 
   METHOD on_salv_link_click.
     handler->on_link_click( row    = row
-                            column = CONV #( column ) ).
+                            column = column ).
   ENDMETHOD.
 
   METHOD on_salv_added_function.
