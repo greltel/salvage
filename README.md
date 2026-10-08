@@ -8,7 +8,6 @@
 [![abaplint](https://github.com/greltel/salvage/actions/workflows/abaplint.yml/badge.svg)](https://github.com/greltel/salvage/actions/workflows/abaplint.yml)
 [![Release](https://img.shields.io/github/v/release/greltel/salvage)](https://github.com/greltel/salvage/releases)
 
-
 SALVage turns the twenty lines of `CL_SALV_TABLE` boilerplate that every report repeats into
 one readable chain:
 
