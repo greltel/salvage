@@ -4,17 +4,21 @@
   <asx:values>
    <PROGDIR>
     <NAME>ZSALVAGE_DEMO_01</NAME>
-    <DBAPL>S</DBAPL>
     <SUBC>1</SUBC>
     <FIXPT>X</FIXPT>
-    <LDBNAME>D$S</LDBNAME>
     <UCCHECK>X</UCCHECK>
    </PROGDIR>
    <TPOOL>
     <item>
      <ID>R</ID>
-     <ENTRY>SALVage demo 01</ENTRY>
-     <LENGTH>15</LENGTH>
+     <ENTRY>SALVage demo 01: the smallest report</ENTRY>
+     <LENGTH>36</LENGTH>
+    </item>
+    <item>
+     <ID>I</ID>
+     <KEY>T01</KEY>
+     <ENTRY>Airlines</ENTRY>
+     <LENGTH>20</LENGTH>
     </item>
    </TPOOL>
   </asx:values>
