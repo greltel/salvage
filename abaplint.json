@@ -901,7 +901,7 @@
       "createObject": true,
       "createData": true,
       "getBadi": true,
-      "assign": true,
+      "assign": false,
       "internalTable": true,
       "exportImport": true
     },
@@ -1357,7 +1357,7 @@
     },
     "use_message_class": {
       "exclude": [
-        "/src/demos/"
+        "zsalvage_demo_\\d+\\.prog\\.abap$"
       ],
       "severity": "Error"
     },
