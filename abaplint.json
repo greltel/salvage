@@ -794,7 +794,7 @@
       "ignorePatterns": [],
       "local": "^LCL_.+$",
       "exception": "^LCX_.+$",
-      "test": "^LTCL_.+$"
+      "test": "^LTC_.+$"
     },
     "local_testclass_consistency": {
       "exclude": [],
