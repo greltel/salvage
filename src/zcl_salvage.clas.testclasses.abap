@@ -61,6 +61,14 @@ CLASS ltc_salvage DEFINITION FINAL FOR TESTING RISK LEVEL HARMLESS DURATION SHOR
         second TYPE salv_de_function VALUE 'SECOND',
       END OF buttons.
 
+    " ZCL_SALVAGE=>VERSION is major.minor.patch, the release tag without the leading v
+    CONSTANTS:
+      BEGIN OF version_format,
+        separator TYPE c LENGTH 1 VALUE '.',
+        parts     TYPE i VALUE 3,
+        digits    TYPE c LENGTH 10 VALUE '0123456789',
+      END OF version_format.
+
     DATA flights TYPE flight_rows.
 
     METHODS setup.
@@ -122,6 +130,8 @@ CLASS ltc_salvage DEFINITION FINAL FOR TESTING RISK LEVEL HARMLESS DURATION SHOR
     METHODS when_container_then_same_name FOR TESTING.
     METHODS when_unused_slot_then_no_text FOR TESTING.
     METHODS when_slot_text_then_dyntxt    FOR TESTING.
+
+    METHODS when_version_then_semantic    FOR TESTING.
 ENDCLASS.
 
 
@@ -651,5 +661,23 @@ CLASS ltc_salvage IMPLEMENTATION.
     cl_abap_unit_assert=>assert_equals( act = CONV string( dynamic_text-quickinfo )
                                         exp = `Quick info of the first button`
                                         msg = `The slot must show the quick info` ).
+  ENDMETHOD.
+
+  METHOD when_version_then_semantic.
+    DATA numbers TYPE string_table.
+
+    " Given the version of this release
+    DATA(version) = zcl_salvage=>version.
+    " When it is split into its numbers
+    SPLIT version AT version_format-separator INTO TABLE numbers.
+    " Then
+    cl_abap_unit_assert=>assert_equals( act = lines( numbers )
+                                        exp = version_format-parts
+                                        msg = |VERSION { version } must be major.minor.patch| ).
+    LOOP AT numbers INTO DATA(number).
+      cl_abap_unit_assert=>assert_true(
+          act = xsdbool( number IS NOT INITIAL AND number CO version_format-digits )
+          msg = |VERSION { version } must hold only numbers between the dots| ).
+    ENDLOOP.
   ENDMETHOD.
 ENDCLASS.
