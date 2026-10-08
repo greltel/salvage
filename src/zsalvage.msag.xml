@@ -74,6 +74,30 @@
      <MSGNR>011</MSGNR>
      <TEXT>CREATE needs a reference to a standard internal table</TEXT>
     </T100>
+    <T100>
+     <SPRSL>E</SPRSL>
+     <ARBGB>ZSALVAGE</ARBGB>
+     <MSGNR>012</MSGNR>
+     <TEXT>Filter on column &amp;1 is not possible</TEXT>
+    </T100>
+    <T100>
+     <SPRSL>E</SPRSL>
+     <ARBGB>ZSALVAGE</ARBGB>
+     <MSGNR>013</MSGNR>
+     <TEXT>Column &amp;1 cannot hold the colours: it must be of type LVC_T_SCOL</TEXT>
+    </T100>
+    <T100>
+     <SPRSL>E</SPRSL>
+     <ARBGB>ZSALVAGE</ARBGB>
+     <MSGNR>014</MSGNR>
+     <TEXT>Column &amp;1 cannot take its unit or currency from column &amp;2</TEXT>
+    </T100>
+    <T100>
+     <SPRSL>E</SPRSL>
+     <ARBGB>ZSALVAGE</ARBGB>
+     <MSGNR>015</MSGNR>
+     <TEXT>Column &amp;1 cannot hold traffic lights: it must be of type C length 1</TEXT>
+    </T100>
    </T100>
   </asx:values>
  </asx:abap>
