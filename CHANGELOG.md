@@ -4,6 +4,23 @@ All notable changes to SALVage are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), versions follow
 [Semantic Versioning](https://semver.org/).
 
+## [Unreleased]
+
+### Added
+
+- ABAP Unit tests for `ZCL_SALVAGE` (local test class `ltc_salvage`, 39 tests): every
+  configuration error, the settings handed to `CL_SALV_TABLE`, and the mapping of the full screen
+  button slots. They run without a screen and read no business data from the database.
+
+### Changed
+
+- `ZCL_SALVAGE`: `display( )` runs its checks and settings in the new private method `prepare( )`,
+  which the unit tests call. No change for callers.
+- `ZSALVAGE_GUI`: status `SALVAGE_FULLSCREEN` has a menu bar (List, Edit, Goto, Settings, and
+  Extras with the own buttons), as the GUI usability check of the ATC asks.
+- Demo reports: the selects of all airlines carry the pseudo comment `CI_NOWHERE`; ATC reported
+  them as selects without a WHERE condition.
+
 ## [1.0.0] - 2026-10-08
 
 First release. Tested on SAP S/4HANA 2023 (ABAP 7.58); the syntax is checked against ABAP 7.50.
