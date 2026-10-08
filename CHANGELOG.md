@@ -6,11 +6,20 @@ All notable changes to SALVage are documented here. The format follows
 
 ## [Unreleased]
 
+## [1.1.0] - 2026-10-08
+
+Minor release: the new public constant `ZCL_SALVAGE=>VERSION` extends the API. Existing calls do
+not change.
+
 ### Added
 
-- ABAP Unit tests for `ZCL_SALVAGE` (local test class `ltc_salvage`, 39 tests): every
-  configuration error, the settings handed to `CL_SALV_TABLE`, and the mapping of the full screen
-  button slots. They run without a screen and read no business data from the database.
+- `ZCL_SALVAGE=>VERSION`: the installed version, `1.1.0` in this release, so that a system shows
+  which release it runs.
+- Issue forms on GitHub for bug reports and feature requests; the bug report asks for the
+  version, the SAP release, the steps, the code and the message or short dump.
+- ABAP Unit tests for `ZCL_SALVAGE` (local test class `ltc_salvage`, 40 tests): every
+  configuration error, the settings handed to `CL_SALV_TABLE`, the mapping of the full screen
+  button slots, and the format of `VERSION`. They run without a screen and read no business data from the database.
 
 ### Changed
 
