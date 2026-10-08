@@ -38,6 +38,7 @@ All ALV toolbar functions are on and users can save layouts, without a line of c
 - [How it works](#how-it-works)
 - [Extending SALVage](#extending-salvage)
 - [Limitations](#limitations)
+- [Troubleshooting](#troubleshooting)
 - [Demo reports](#demo-reports)
 - [Contributing](#contributing)
 - [License](#license)
@@ -83,8 +84,9 @@ SALVage keeps what SALV does well and removes the ceremony:
 | Area | What you get |
 |---|---|
 | Display | Full screen, dialog box (popup) or any GUI container (docking, custom, splitter...) |
-| Columns | Header text and quick info, width, position, hidden, technical, key, hotspot, checkbox, icon |
-| Rows | Sorting with subtotals, totals, striped pattern, optimized column widths |
+| Columns | Header text and quick info, width, position, hidden, technical, key, hotspot, checkbox, icon, colour, edit mask (conversion exit), hidden zeros, unit and currency column; the component name as header where no data element gives one |
+| Rows | Sorting with subtotals, totals (sum, average, minimum, maximum), filters, row and cell colours, traffic lights, striped pattern, optimized column widths, empty columns hidden |
+| Texts | Title, lines of text above and below the list |
 | Layouts | Saving on by default, per program and handle, initial layout, F4 help for a selection-screen parameter |
 | Interaction | Row or cell selection, own toolbar buttons, double-click, hotspot click |
 | Errors | `ZCX_SALVAGE_ERROR` with texts from message class `ZSALVAGE` |
@@ -113,7 +115,7 @@ SALVage keeps what SALV does well and removes the ceremony:
 | `ZCX_SALVAGE_ERROR` | Exception class | `Z_SALVAGE` | Configuration errors |
 | `ZSALVAGE` | Message class | `Z_SALVAGE` | Texts of the errors |
 | `ZSALVAGE_GUI` | Program | `Z_SALVAGE` | GUI status for own buttons in fullscreen lists |
-| `ZSALVAGE_DEMO_01` ... `_04` | Programs | `Z_SALVAGE_DEMOS` | Demo reports on `SCARR` / `SFLIGHT` |
+| `ZSALVAGE_DEMO_01` ... `_05` | Programs | `Z_SALVAGE_DEMOS` | Demo reports on `SCARR` / `SFLIGHT` |
 
 The demo package is a subpackage. If you do not want the demos in a system, delete
 `Z_SALVAGE_DEMOS` after the pull; the library does not use them.
@@ -154,6 +156,85 @@ Initial components of the settings change nothing, so each call names only what 
 Column names are not case-sensitive. A name the table does not have raises `ZCX_SALVAGE_ERROR`
 with message `ZSALVAGE 001` when `display( )` runs.
 
+A column whose component has no data element, for example `TYPE p LENGTH 8 DECIMALS 2`, gets its
+component name as header, unless you give it a `text`, and a width that fits its content, unless
+you give it a `width`. Without that SALV cuts signs, separators and dates of such columns.
+
+More column settings:
+
+```abap
+)->column( name     = 'REVENUE'
+           settings = VALUE #( currency_column = 'CURRENCY'          " amount with its currency
+                               color           = VALUE #( col = col_total )
+                               is_zero_hidden  = abap_true )
+)->column( name     = 'QUANTITY'
+           settings = VALUE #( unit_column = 'UNIT' )                " quantity with its unit
+)->column( name     = 'MATNR'
+           settings = VALUE #( edit_mask = '==MATN1' )               " conversion exit
+```
+
+`unit_column` and `currency_column` are needed when the line type does not tell SALV which
+column holds the unit or currency, typically for a structure declared in the report.
+
+### Colours and traffic lights
+
+```abap
+TYPES:
+  BEGIN OF flight,
+    light    TYPE c LENGTH 1,      " 1 red, 2 yellow, 3 green
+    carrid   TYPE sflight-carrid,
+    seatsocc TYPE sflight-seatsocc,
+    colors   TYPE lvc_t_scol,
+  END OF flight.
+
+" a line with an empty FNAME colours the row, a line with a column name only that cell
+INSERT VALUE #( fname = 'SEATSOCC' color = VALUE #( col = col_negative ) ) INTO TABLE flight-colors.
+
+zcl_salvage=>create( REF #( flights )
+           )->lights_from( 'LIGHT'
+           )->colors_from( 'COLORS'
+           )->display( ).
+```
+
+### Filters
+
+```abap
+)->filter_by( name     = 'SEATSOCC'
+              settings = VALUE #( option = 'GT' low = '0' ) )
+)->filter_by( name     = 'CARRID'
+              settings = VALUE #( low = 'LH' ) )      " option EQ when left initial
+)->filter_by( name     = 'CARRID'
+              settings = VALUE #( low = 'UA' ) )      " a second condition for the same column
+)->filter_by( name     = 'CURRENCY'
+              settings = VALUE #( is_excluded = abap_true low = 'EUR' ) )   " sign E
+```
+
+The rows are filtered when the list is shown; users see the filter in the toolbar and can change
+or delete it. The conditions work like the lines of a ranges table, with `is_excluded` in place
+of the sign: a structure with the components `SIGN`, `OPTION`, `LOW` and `HIGH` would make the
+syntax check warn about every condition without a sign. Values are in internal format
+(`20261231` for a date). The comparison must be one of `EQ NE GT GE LT LE BT NB CP NP`, in any
+case; `display( )` rejects any other with message 016, because SALV would accept it and dump when
+it shows the list.
+
+### Text above and below the list
+
+```abap
+)->top_of_list( VALUE #( heading = `Occupancy of flights`
+                         lines   = VALUE #( ( |Shown on { sy-datum DATE = USER }| ) ) ) )
+)->end_of_list( VALUE #( lines = VALUE #( ( `Red: more than 90 % of the seats occupied` ) ) ) )
+```
+
+The heading is bold, every entry of `lines` is one line. The texts show in full screen, in a
+dialog box and on the printout; a list in a container shows them on the printout only. In a small
+dialog box they take room from the rows, so give it enough lines.
+
+### Empty columns
+
+`hide_empty_columns( )` hides every column that has no value in any row, for example optional
+fields of a generic table. Users can show them again through the layout. An empty table hides
+nothing.
+
 ### Sorting and totals
 
 ```abap
@@ -161,6 +242,8 @@ with message `ZSALVAGE 001` when `display( )` runs.
             settings = VALUE #( has_subtotals = abap_true )
 )->sort_by( 'CONNID'
 )->total( 'SEATSOCC'
+)->total( name = 'PRICE'
+          kind = if_salv_c_aggregation=>average )   " or minimum, maximum
 ```
 
 The first `sort_by( )` is the first criterion. Subtotals appear for every column with a total.
@@ -261,9 +344,12 @@ selection screen.
 
 `display( )` checks the whole configuration first and raises `ZCX_SALVAGE_ERROR` when something
 does not fit: a column the table does not have, a total on a text column, a button in a dialog
-box, more than 10 buttons in full screen, a table that is not a standard table. These are
-mistakes in the calling program, so the class inherits from `CX_DYNAMIC_CHECK`: a report does not
-have to catch it, and a mistake shows up at the first test. To show the text instead:
+box, more than 10 buttons in full screen, a table that is not a standard table with structured
+lines, a filter comparison or total kind that does not exist, a colour or light column of the
+wrong type, a dialog box with impossible coordinates. Several of these make SALV itself dump or
+silently ignore the setting; SALVage stops them with a message instead. These are mistakes in
+the calling program, so the class inherits from `CX_DYNAMIC_CHECK`: a report does not have to
+catch it, and a mistake shows up at the first test. To show the text instead:
 
 ```abap
 TRY.
@@ -283,13 +369,19 @@ The ABAP Doc of every public declaration is the full reference (F2 in ADT).
 
 | Method | Parameters | Purpose |
 |---|---|---|
-| `create` (static) | `table` | Starts a list for a reference to a standard table |
+| `create` (static) | `table` | Starts a list for a reference to a standard table with structured lines |
 | `title` | `text` | Header above the list |
 | `striped` | - | Rows in alternating colours |
 | `optimized` | - | Column widths fitted to the content |
 | `column` | `name`, `settings` | How one column is shown |
 | `sort_by` | `name`, `settings` (optional) | Ascending sort, optionally with subtotals |
-| `total` | `name` | Total line for a numeric column |
+| `total` | `name`, `kind` (optional) | Total line for a numeric column: sum, average, minimum or maximum |
+| `filter_by` | `name`, `settings` | Filter condition applied at start |
+| `colors_from` | `name` | Row and cell colours from a column of type `LVC_T_SCOL` |
+| `lights_from` | `name` | Traffic lights from a column of type `C` length 1 |
+| `hide_empty_columns` | - | Hides the columns without any value |
+| `top_of_list` | `settings` | Lines of text above the list |
+| `end_of_list` | `settings` | Lines of text below the list |
 | `layout` | `settings` | Layout handling (default: saving allowed) |
 | `selection` | `mode` | Row or cell selection |
 | `button` | `name`, `settings` | Own toolbar button |
@@ -310,7 +402,9 @@ The ABAP Doc of every public declaration is the full reference (F2 in ADT).
 
 | Type | Components |
 |---|---|
-| `column_settings` | `text`, `tooltip`, `width`, `position`, `is_hidden`, `is_technical`, `is_key`, `is_hotspot`, `is_checkbox`, `is_icon` |
+| `column_settings` | `text`, `tooltip`, `width`, `position`, `is_hidden`, `is_technical`, `is_key`, `is_hotspot`, `is_checkbox`, `is_icon`, `is_zero_hidden`, `unit_column`, `currency_column`, `edit_mask`, `color` |
+| `filter_settings` | `is_excluded`, `option`, `low`, `high` |
+| `text_settings` | `heading`, `lines` |
 | `sort_settings` | `has_subtotals` |
 | `layout_settings` | `name`, `handle`, `is_save_disabled` |
 | `button_settings` | `text`, `icon`, `tooltip` |
@@ -333,7 +427,15 @@ selection column), `-cells`.
 | 008 | Button &1 is defined more than once |
 | 009 | The list is already displayed; use REFRESH to show changed data |
 | 010 | Selection mode &1 is not supported |
-| 011 | CREATE needs a reference to a standard internal table |
+| 011 | CREATE needs a reference to a standard table with structured lines |
+| 012 | Filter on column &1 is not possible |
+| 013 | Column &1 cannot hold the colours: it must be of type LVC_T_SCOL |
+| 014 | Column &1 cannot take its unit or currency from column &2 |
+| 015 | Column &1 cannot hold traffic lights: it must be of type C length 1 |
+| 016 | Comparison &1 is not supported in the filter on column &2 |
+| 017 | IN_CONTAINER needs a container; the reference passed is initial |
+| 018 | Total kind &1 of column &2 is not supported; see IF_SALV_C_AGGREGATION |
+| 019 | Dialog box columns &1-&2, lines &3-&4: start from 1, end after start |
 
 ## How it works
 
@@ -345,8 +447,9 @@ selection column), `-cells`.
  record into private      ----> new_salv (CL_SALV_TABLE=>FACTORY) ----> refresh
  attributes; no SALV call,      apply_display_settings, apply_columns,  on_salv_* event methods
  no exception                   apply_sorts, apply_totals,              -> ZIF_SALVAGE_EVENTS
-                                apply_selection, apply_layout,
-                                apply_functions, apply_popup
+                                apply_filters, apply_selection,
+                                apply_layout, apply_functions,
+                                apply_list_texts, apply_popup
                                 register_handler, show
 ```
 
@@ -377,7 +480,7 @@ New features go into the existing objects; the object list stays as short as it 
 | You want | Do this |
 |---|---|
 | A new option of an existing area (for example a column property) | Add a component with ABAP Doc to the settings structure and handle it in that area's `apply_*` method |
-| A new area (for example a header above the list) | Add a configuration method that records into a private attribute, an `apply_<area>` method called from `apply_settings`, messages in `ZSALVAGE` for what can go wrong |
+| A new area (for example print settings) | Add a configuration method that records into a private attribute, an `apply_<area>` method called from `apply_settings`, messages in `ZSALVAGE` for what can go wrong |
 | A new event | Add a method with `DEFAULT IGNORE` to `ZIF_SALVAGE_EVENTS`, a private `on_salv_<event>` handler, and register it in `register_handler` |
 | A new kind of output (for example a spreadsheet download) | Add a final method next to `display( )` that reuses `check_configuration`, `new_salv` and `apply_settings` |
 
@@ -394,12 +497,21 @@ discussed in an issue first.
   - descending sort as an initial setting (`IF_SALV_C_SORT`) - users can still sort descending
     with the toolbar;
   - column alignment (`IF_SALV_C_ALIGNMENT`);
-  - quick info for cell values (`CL_SALV_TOOLTIPS`).
+  - quick info for cell values (`CL_SALV_TOOLTIPS`);
+  - column groups for the layout dialog (`CL_SALV_SPECIFIC_GROUPS`).
 - **Own buttons:** at most 10 in full screen, none in a dialog box.
-- **Standard tables only**, as `CL_SALV_TABLE` itself.
+- **Standard tables with structured lines only**, as `CL_SALV_TABLE` itself; `display( )` rejects
+  a sorted or hashed table and a table of strings or numbers with message 011.
 - SALV methods that `CL_SALV_TABLE` inherits from `CL_SALV_MODEL_LIST` and `CL_SALV_MODEL_BASE`
   (for example `SET_SCREEN_STATUS`, `GET_LAYOUT`) are called through `CL_SALV_TABLE`, which is
   classified as classic API.
+
+## Troubleshooting
+
+| Symptom | Cause | Fix |
+|---|---|---|
+| Dump `CX_SALV_OBJECT_NOT_FOUND`, "Object ZSALVAGE_GUI-SALVAGE_FULLSCREEN STATUS not found", for a full screen list with own buttons | Program `ZSALVAGE_GUI` exists without its GUI status, for example because it was created by hand | Pull `ZSALVAGE_GUI` again with abapGit; transaction SE41 must then show status `SALVAGE_FULLSCREEN` with the functions `SALVAGE01` to `SALVAGE10` |
+| Message `ZSALVAGE 0nn` shows `amp;` in its text | The text was copied from `zsalvage.msag.xml`, where `&` is written `&amp;` | Correct the text in SE91, or pull the message class with abapGit |
 
 ## Demo reports
 
@@ -409,6 +521,7 @@ discussed in an issue first.
 | `ZSALVAGE_DEMO_02` | Selection screen, column settings, sorting with subtotals, totals, layouts with F4 help, error handling |
 | `ZSALVAGE_DEMO_03` | Own buttons in full screen, row selection, hotspot click, a dialog box opened from a handler, `refresh( )` |
 | `ZSALVAGE_DEMO_04` | A list with an own button in a docking container on the selection screen |
+| `ZSALVAGE_DEMO_05` | Traffic lights, row and cell colours, a filter, text above and below the list, average and maximum, a currency column, hidden empty columns |
 
 ## Contributing
 
@@ -416,7 +529,8 @@ Issues and pull requests are welcome. Before you open a pull request:
 
 1. Keep the syntax at ABAP 7.50: `abaplint.json` checks against release 7.50 and rejects newer
    statements such as `RAISE EXCEPTION NEW` (7.52) or `ENUM` (7.51).
-2. Run abaplint: `npx @abaplint/cli abaplint.json` (the GitHub workflow runs it on every push).
+2. Run abaplint: `npx @abaplint/cli@2.120.70 abaplint.json`, the version the GitHub workflow runs on
+   every push (older releases do not know `DEFAULT IGNORE` and report the demos).
 3. Document every public declaration with ABAP Doc.
 4. Add or adjust a demo report when you add a feature.
 
@@ -432,6 +546,7 @@ Issues and pull requests are welcome. Before you open a pull request:
 | `abapdoc` | class and interface definitions too | ABAP Doc is the documentation of the library |
 | `method_length` | 20 statements | Short methods |
 | `use_message_class` | demos excluded | The demos show exception texts with `MESSAGE error TYPE ...`, which the rule cannot tell from a text message |
+| `no_dynamic_stuff` | `assign` off | `hide_empty_columns( )` reads the cells of the generic table with `ASSIGN COMPONENT`; the component names come from SALV, not from user input |
 | `unused_variables` | skips `previous` | abaplint's stub of `CX_ROOT` has no constructor, so the `previous` parameter of the exception constructor looks unused |
 
 ## License
