@@ -1,0 +1,29 @@
+name: Feature request
+description: Propose a new option or behaviour for ZCL_SALVAGE.
+labels: ["enhancement"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        SALVage stays small on purpose: new options go into the existing settings structures and methods, and it uses only SALV objects that SAP classifies as classic API.
+        See [Limitations](https://github.com/greltel/salvage#limitations) for options that are known to be out of reach.
+  - type: textarea
+    id: need
+    attributes:
+      label: What you need
+      description: What the list should show or let users do, and why the current API does not cover it.
+    validations:
+      required: true
+  - type: textarea
+    id: call
+    attributes:
+      label: How the call could look
+      description: The chain with the new option, as you would like to write it.
+      render: abap
+    validations:
+      required: true
+  - type: textarea
+    id: salv
+    attributes:
+      label: SALV objects
+      description: The CL_SALV_* classes or methods that offer this, if you know them.

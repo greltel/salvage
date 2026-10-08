@@ -1,0 +1,96 @@
+name: Bug report
+description: SALVage dumps, raises a wrong error, or shows a list other than documented.
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Please check the [Troubleshooting](https://github.com/greltel/salvage#troubleshooting) table of the README first.
+        Replace business data in code, screenshots and dumps before you post them: issues are public.
+  - type: input
+    id: salvage-version
+    attributes:
+      label: SALVage version
+      description: The value of the constant `ZCL_SALVAGE=>VERSION` (SE24, tab Attributes). Installs older than 1.1.0 have no such constant; give the commit that abapGit shows instead.
+      placeholder: 1.1.0
+    validations:
+      required: true
+  - type: input
+    id: sap-release
+    attributes:
+      label: SAP release
+      description: Product and release of the system, and release and support package of component SAP_BASIS (System > Status > Product Version > Installed Software Component Versions).
+      placeholder: S/4HANA 2023 FPS03, SAP_BASIS 758 SP 0003
+    validations:
+      required: true
+  - type: dropdown
+    id: display-mode
+    attributes:
+      label: Display mode
+      description: How the list is shown, or would be shown if the error did not stop it.
+      options:
+        - Full screen
+        - Dialog box (popup)
+        - GUI container
+    validations:
+      required: true
+  - type: dropdown
+    id: front-end
+    attributes:
+      label: Front end
+      options:
+        - SAP GUI for Windows
+        - SAP GUI for Java
+        - SAP GUI for HTML (WebGUI)
+        - Background job (spool)
+        - Other
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      description: What you ran and what you clicked, one step per line.
+      placeholder: |
+        1. Run report ZMY_FLIGHTS without selections
+        2. Select two rows and click button Remove
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected result
+    validations:
+      required: true
+  - type: textarea
+    id: actual
+    attributes:
+      label: Actual result
+      description: What happened instead. For a list that looks wrong, attach a screenshot.
+    validations:
+      required: true
+  - type: textarea
+    id: code
+    attributes:
+      label: Code
+      description: The smallest report that shows the problem, ideally on SCARR or SFLIGHT. It is formatted as ABAP, no backticks needed.
+      render: abap
+    validations:
+      required: true
+  - type: textarea
+    id: error
+    attributes:
+      label: Message or short dump
+      description: |
+        For ZCX_SALVAGE_ERROR: the message number of class ZSALVAGE and its text.
+        For a short dump (ST22): the runtime error, the exception, and the sections "What happened?", "Source Code Extract" and the top of "Active Calls/Events".
+      render: text
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Checks
+      options:
+        - label: I searched the existing issues and found none for this problem.
+          required: true
+        - label: Code, screenshots and dump contain no confidential data.
+          required: true

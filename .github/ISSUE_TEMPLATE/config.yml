@@ -1,0 +1,5 @@
+blank_issues_enabled: true
+contact_links:
+  - name: Troubleshooting
+    url: https://github.com/greltel/salvage#troubleshooting
+    about: Known errors and their fixes; please look here before you report a bug.
