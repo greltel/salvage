@@ -28,10 +28,11 @@ CLASS lcl_demo IMPLEMENTATION.
   ENDMETHOD.
 
   METHOD read_carriers.
+    " All airlines are wanted; SCARR holds a few dozen rows
     SELECT FROM scarr
       FIELDS carrid, carrname, currcode, url
       ORDER BY carrid
-      INTO TABLE @result.
+      INTO TABLE @result.                               "#EC CI_NOWHERE
   ENDMETHOD.
 ENDCLASS.
 

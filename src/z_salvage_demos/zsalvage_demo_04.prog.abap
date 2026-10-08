@@ -134,10 +134,11 @@ CLASS lcl_cockpit IMPLEMENTATION.
   ENDMETHOD.
 
   METHOD read_carriers.
+    " All airlines are wanted; SCARR holds a few dozen rows
     SELECT FROM scarr
       FIELDS carrid, carrname, url
       ORDER BY carrid
-      INTO TABLE @result.
+      INTO TABLE @result.                               "#EC CI_NOWHERE
   ENDMETHOD.
 
   METHOD read_flights.

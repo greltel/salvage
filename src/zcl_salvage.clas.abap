@@ -484,6 +484,9 @@ CLASS zcl_salvage DEFINITION
     DATA salv                TYPE REF TO cl_salv_table.
     DATA is_displayed        TYPE abap_bool.
 
+    METHODS prepare
+      RAISING zcx_salvage_error.
+
     METHODS check_configuration
       RAISING zcx_salvage_error.
 
@@ -810,9 +813,7 @@ CLASS ZCL_SALVAGE IMPLEMENTATION.
 
 
   METHOD display.
-    check_configuration( ).
-    salv = new_salv( ).
-    apply_settings( ).
+    prepare( ).
     register_handler( ).
     is_displayed = abap_true.
     show( ).
@@ -1517,5 +1518,13 @@ CLASS ZCL_SALVAGE IMPLEMENTATION.
   METHOD raise_light_column_error.
     RAISE EXCEPTION TYPE zcx_salvage_error MESSAGE e015(zsalvage) WITH light_column
       EXPORTING previous = previous.
+  ENDMETHOD.
+
+
+  METHOD prepare.
+    " Everything DISPLAY does before the screen, so the unit tests can run it without a GUI
+    check_configuration( ).
+    salv = new_salv( ).
+    apply_settings( ).
   ENDMETHOD.
 ENDCLASS.
