@@ -274,8 +274,8 @@ CLASS zcl_salvage DEFINITION
     METHODS hide_empty_columns
       RETURNING VALUE(self) TYPE REF TO zcl_salvage.
 
-    "! Sets lines of text above the list. SAP shows them in full screen and on the printout; a
-    "! list in a container shows them on the printout only.
+    "! Sets lines of text above the list. They show in full screen, in a dialog box and on the
+    "! printout; a list in a container shows them on the printout only.
     "!
     "! @parameter settings | Heading and further lines
     "! @parameter self     | This list, for the next call of the chain
