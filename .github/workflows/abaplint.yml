@@ -13,4 +13,4 @@ jobs:
         with:
           node-version: 20
       - name: Run abaplint (syntax of ABAP 7.50)
-        run: npx --yes @abaplint/cli abaplint.json
+        run: npx --yes @abaplint/cli@2.120.70 abaplint.json
