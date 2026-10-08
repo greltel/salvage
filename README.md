@@ -469,7 +469,12 @@ selection column), `-cells`.
   read from the static attribute `ZCL_SALVAGE=>SLOT_TEXTS`. `display( )` fills the slots from
   your `button( )` calls, hides the unused ones, and maps a click on a slot back to your button
   name. When a handler opens another fullscreen list, the texts of the first list are restored
-  when the user comes back to it.
+  when the user comes back to it. The status also has a menu bar - List, Edit, Goto, Settings,
+  and Extras with the own buttons - as the GUI usability check of the ATC asks.
+- **Testable without a screen.** `display( )` runs the private method `prepare( )` - check the
+  configuration, create the `CL_SALV_TABLE`, apply the settings - and only then shows the list. The
+  unit tests in the class (`ltc_salvage`, about 40 tests) call `prepare( )` directly and check
+  every configuration error, the settings handed to SALV and the mapping of button slots.
 - **No copies.** The ALV gets your table by reference, so even large tables cost no extra memory
   and row indexes in events point into your table.
 
@@ -531,8 +536,10 @@ Issues and pull requests are welcome. Before you open a pull request:
    statements such as `RAISE EXCEPTION NEW` (7.52) or `ENUM` (7.51).
 2. Run abaplint: `npx @abaplint/cli@2.120.70 abaplint.json`, the version the GitHub workflow runs on
    every push (older releases do not know `DEFAULT IGNORE` and report the demos).
-3. Document every public declaration with ABAP Doc.
-4. Add or adjust a demo report when you add a feature.
+3. Run the unit tests of `ZCL_SALVAGE` (Ctrl+Shift+F10 in ADT) and add a test for every new check
+   or setting. The tests call the private method `prepare( )`, so they need no screen.
+4. Document every public declaration with ABAP Doc.
+5. Add or adjust a demo report when you add a feature.
 
 `abaplint.json` enables all abaplint rules, with these changes and the reason for each:
 
@@ -546,6 +553,7 @@ Issues and pull requests are welcome. Before you open a pull request:
 | `abapdoc` | class and interface definitions too | ABAP Doc is the documentation of the library |
 | `method_length` | 20 statements | Short methods |
 | `use_message_class` | demos excluded | The demos show exception texts with `MESSAGE error TYPE ...`, which the rule cannot tell from a text message |
+| `local_class_naming` | test classes `LTC_` | The unit test classes follow the `ltc_` / `ltd_` / `lth_` naming of the project instead of abaplint's default `LTCL_` |
 | `no_dynamic_stuff` | `assign` off | `hide_empty_columns( )` reads the cells of the generic table with `ASSIGN COMPONENT`; the component names come from SALV, not from user input |
 | `unused_variables` | skips `previous` | abaplint's stub of `CX_ROOT` has no constructor, so the `previous` parameter of the exception constructor looks unused |
 
