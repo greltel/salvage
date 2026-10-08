@@ -76,7 +76,7 @@ ENDCLASS.
 CLASS lcl_demo IMPLEMENTATION.
   METHOD run.
     carriers = read_carriers( ).
-    alv = zcl_salvage=>create( REF #( carriers )
+    zcl_salvage=>create( REF #( carriers )
                      )->title( TEXT-t01
                      )->column( name     = airline_column
                                 settings = VALUE #( is_hotspot = abap_true )
@@ -89,8 +89,7 @@ CLASS lcl_demo IMPLEMENTATION.
                                 settings = VALUE #( text    = TEXT-b02
                                                     icon    = icon_delete_row
                                                     tooltip = TEXT-q02 )
-                     )->handled_by( me ).
-    alv->display( ).
+                     )->handled_by( me )->display( ).
   ENDMETHOD.
 
   METHOD zif_salvage_events~on_link_click.

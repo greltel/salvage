@@ -4,7 +4,8 @@
   <asx:values>
    <PROGDIR>
     <NAME>ZSALVAGE_GUI</NAME>
-    <SUBC>1</SUBC>
+    <SUBC>M</SUBC>
+    <RLOAD>E</RLOAD>
     <FIXPT>X</FIXPT>
     <UCCHECK>X</UCCHECK>
    </PROGDIR>

@@ -3,8 +3,7 @@
  <asx:abap xmlns:asx="http://www.sap.com/abapxml" version="1.0">
   <asx:values>
    <DEVC>
-    <CTEXT>SALVage - demo reports</CTEXT>
-    <SRV_CHECK>X</SRV_CHECK>
+    <CTEXT>SALVage Demo Package</CTEXT>
    </DEVC>
   </asx:values>
  </asx:abap>
