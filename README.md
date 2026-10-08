@@ -5,7 +5,8 @@
 ![ABAP 7.50+](https://img.shields.io/badge/ABAP-7.50%2B-blue)
 ![Standard ABAP](https://img.shields.io/badge/language-Standard%20ABAP-blue)
 ![License: MIT](https://img.shields.io/badge/license-MIT-green)
-![abaplint](https://img.shields.io/badge/lint-abaplint-orange)
+[![abaplint](https://github.com/greltel/salvage/actions/workflows/abaplint.yml/badge.svg)](https://github.com/greltel/salvage/actions/workflows/abaplint.yml)
+[![Release](https://img.shields.io/github/v/release/greltel/salvage)](https://github.com/greltel/salvage/releases)
 
 SALVage turns the twenty lines of `CL_SALV_TABLE` boilerplate that every report repeats into
 one readable chain:
@@ -122,6 +123,11 @@ The demo package is a subpackage. If you do not want the demos in a system, dele
 
 The demos read the flight data model (`SCARR`, `SFLIGHT`). If its tables are empty, fill them
 with report `SAPBC_DATA_GENERATOR`.
+
+The constant `ZCL_SALVAGE=>VERSION` tells which version a system has, for example `1.1.0`: the
+[release](https://github.com/greltel/salvage/releases) tag without the `v`. For a production
+system, install a release rather than the latest commit of `main`: switch the abapGit repository
+to the release tag before the pull.
 
 ## Quick start
 
@@ -413,6 +419,8 @@ The ABAP Doc of every public declaration is the full reference (F2 in ADT).
 Selection modes: `zcl_salvage=>selection_modes-single`, `-multiple` (several rows through a
 selection column), `-cells`.
 
+Version: `zcl_salvage=>version`, the installed version as `major.minor.patch`, for example `1.1.0`.
+
 ### Messages of class `ZSALVAGE`
 
 | No. | Text |
@@ -530,7 +538,12 @@ discussed in an issue first.
 
 ## Contributing
 
-Issues and pull requests are welcome. Before you open a pull request:
+Report bugs and propose features through the
+[issue forms](https://github.com/greltel/salvage/issues/new/choose). The bug report asks for what a
+fix needs: `ZCL_SALVAGE=>VERSION`, the SAP release, the steps, the code and the message or dump.
+
+Pull requests are welcome. Branch `main` is protected: changes reach it only through a pull
+request, and only when the abaplint check of the pull request is green. Before you open one:
 
 1. Keep the syntax at ABAP 7.50: `abaplint.json` checks against release 7.50 and rejects newer
    statements such as `RAISE EXCEPTION NEW` (7.52) or `ENUM` (7.51).
@@ -556,6 +569,15 @@ Issues and pull requests are welcome. Before you open a pull request:
 | `local_class_naming` | test classes `LTC_` | The unit test classes follow the `ltc_` / `ltd_` / `lth_` naming of the project instead of abaplint's default `LTCL_` |
 | `no_dynamic_stuff` | `assign` off | `hide_empty_columns( )` reads the cells of the generic table with `ASSIGN COMPONENT`; the component names come from SALV, not from user input |
 | `unused_variables` | skips `previous` | abaplint's stub of `CX_ROOT` has no constructor, so the `previous` parameter of the exception constructor looks unused |
+
+### Releases
+
+1. Set `ZCL_SALVAGE=>VERSION` to the new version: the patch number for fixes, the minor number for
+   new options or methods, the major number for changes that break existing calls.
+2. Move the entries under `[Unreleased]` in `CHANGELOG.md` to a section for the new version.
+3. Merge into `main`, pull into a test system, run the unit tests and ATC.
+4. Publish a release with the tag `v` plus the version, for example `v1.1.0`, on that commit.
+   Release tags are never moved or deleted.
 
 ## License
 
