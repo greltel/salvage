@@ -99,8 +99,22 @@ SALVage keeps what SALV does well and removes the ceremony:
   private cloud included).
 - **Standard ABAP** (classic ABAP). SALV is a SAP GUI technology and is not released for
   ABAP Cloud.
-- SAP GUI for the users of the reports.
+- SAP GUI for Windows or SAP GUI for HTML (WebGUI) for the users of the reports; background
+  jobs write the list to the spool.
 - [abapGit](https://abapgit.org) to install.
+
+### Tested on
+
+SAP S/4HANA 2023 FPS03 (ABAP 7.58), with the demo reports. abaplint checks every change
+against the syntax of ABAP 7.50, but SALVage has not yet run on a release older than 7.58; a
+report from such a system is welcome as an issue.
+
+| Front end or output | Checked |
+|---|---|
+| SAP GUI for Windows | All demos: full screen with own buttons, dialog box, docking container; the unit tests and ATC |
+| SAP GUI for HTML (WebGUI) | Own buttons and hotspots in full screen, docking container, dialog box opened from a button, traffic lights, colours, text above and below the list |
+| Background job | List in the spool with title, text above and below, traffic lights, colours, and totals per currency |
+| Spreadsheet export (XLSX) | Own column headers, text above and below, totals per currency, amounts with the decimals of their currency, hidden columns left out |
 
 ## Installation
 
@@ -120,6 +134,10 @@ SALVage keeps what SALV does well and removes the ceremony:
 
 The demo package is a subpackage. If you do not want the demos in a system, delete
 `Z_SALVAGE_DEMOS` after the pull; the library does not use them.
+
+Install with abapGit in the development system only. From there the objects of `Z_SALVAGE`
+travel to quality assurance and production with ordinary transport requests; keep the demos in
+a request of their own that does not go to production.
 
 The demos read the flight data model (`SCARR`, `SFLIGHT`). If its tables are empty, fill them
 with report `SAPBC_DATA_GENERATOR`.
