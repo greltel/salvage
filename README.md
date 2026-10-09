@@ -91,7 +91,7 @@ SALVage keeps what SALV does well and removes the ceremony:
 | Layouts | Saving on by default, per program and handle, initial layout, F4 help for a selection-screen parameter |
 | Interaction | Row or cell selection, own toolbar buttons, double-click, hotspot click |
 | Errors | `ZCX_SALVAGE_ERROR` with texts from message class `ZSALVAGE` |
-| Portability | ABAP 7.50 and later; uses only SALV objects SAP classifies as classic API |
+| Portability | ABAP 7.50 and later; uses only SALV objects SAP classifies as classic API, with one exception (see [Limitations](#limitations)) |
 
 ## Requirements
 
@@ -130,7 +130,7 @@ report from such a system is welcome as an issue.
 | `ZCX_SALVAGE_ERROR` | Exception class | `Z_SALVAGE` | Configuration errors |
 | `ZSALVAGE` | Message class | `Z_SALVAGE` | Texts of the errors |
 | `ZSALVAGE_GUI` | Program | `Z_SALVAGE` | GUI status for own buttons in fullscreen lists |
-| `ZSALVAGE_DEMO_01` ... `_05` | Programs | `Z_SALVAGE_DEMOS` | Demo reports on `SCARR` / `SFLIGHT` |
+| `ZSALVAGE_DEMO_01` ... `_06` | Programs | `Z_SALVAGE_DEMOS` | Demo reports on `SCARR` / `SFLIGHT` |
 
 The demo package is a subpackage. If you do not want the demos in a system, delete
 `Z_SALVAGE_DEMOS` after the pull; the library does not use them.
@@ -142,7 +142,7 @@ a request of their own that does not go to production.
 The demos read the flight data model (`SCARR`, `SFLIGHT`). If its tables are empty, fill them
 with report `SAPBC_DATA_GENERATOR`.
 
-The constant `ZCL_SALVAGE=>VERSION` tells which version a system has, for example `1.1.0`: the
+The constant `ZCL_SALVAGE=>VERSION` tells which version a system has, for example `1.2.0`: the
 [release](https://github.com/greltel/salvage/releases) tag without the `v`. For a production
 system, install a release rather than the latest commit of `main`: switch the abapGit repository
 to the release tag before the pull.
@@ -283,7 +283,8 @@ their default layout is shown at start. To change that:
                     name   = layout ) )  " layout shown at start, e.g. from the selection screen
 ```
 
-`is_save_disabled = abap_true` lets users choose layouts but not save them.
+`is_save_disabled = abap_true` lets users choose layouts, their default layout included, but not
+save them.
 
 F4 help for a layout parameter on the selection screen:
 
@@ -337,8 +338,8 @@ you need. New events can be added to the interface later without breaking your h
 
 | Event | Raised when |
 |---|---|
-| `on_double_click( row column )` | The user double-clicks a cell |
-| `on_link_click( row column )` | The user clicks a cell of a hotspot column |
+| `on_double_click( row column )` | The user double-clicks a cell; not for total and subtotal lines |
+| `on_link_click( row column )` | The user clicks a cell of a hotspot column; not for total and subtotal lines |
 | `on_button_click( button )` | The user clicks an own button |
 
 Own buttons per display mode:
@@ -419,7 +420,8 @@ The ABAP Doc of every public declaration is the full reference (F2 in ADT).
 |---|---|
 | `display` | Checks the configuration, applies it, shows the list; raises `ZCX_SALVAGE_ERROR` |
 | `selected_rows` | Indexes of the selected rows, while the list is shown |
-| `refresh` | Shows the current content of the table again, keeping the scroll position |
+| `selected_cells` | Row index and column name of the selected cells, in selection mode `cells` |
+| `refresh` | Shows the current content of the table again, also after rows were deleted or added; sorting, filters and totals are applied again, the user's sort order, filters and scroll position stay |
 | `layout_f4` (static) | F4 help for a layout parameter of a selection screen |
 
 ### Settings structures
@@ -434,10 +436,13 @@ The ABAP Doc of every public declaration is the full reference (F2 in ADT).
 | `button_settings` | `text`, `icon`, `tooltip` |
 | `popup_settings` | `start_column`, `end_column`, `start_line`, `end_line` |
 
-Selection modes: `zcl_salvage=>selection_modes-single`, `-multiple` (several rows through a
-selection column), `-cells`.
+Result types: `row_indexes` (row indexes, from `selected_rows( )`) and `cell_positions`
+(`row`, `column`, from `selected_cells( )`).
 
-Version: `zcl_salvage=>version`, the installed version as `major.minor.patch`, for example `1.1.0`.
+Selection modes: `zcl_salvage=>selection_modes-single`, `-multiple` (several rows through a
+selection column), `-cells` (single cells or blocks, read with `selected_cells( )`).
+
+Version: `zcl_salvage=>version`, the installed version as `major.minor.patch`, for example `1.2.0`.
 
 ### Messages of class `ZSALVAGE`
 
@@ -469,7 +474,7 @@ Version: `zcl_salvage=>version`, the installed version as `major.minor.patch`, f
 
 ```text
  configuration methods          display( )                              runtime
- title, column, sort_by, ...    check_configuration                     selected_rows
+ title, column, sort_by, ...    check_configuration                     selected_rows, selected_cells
  record into private      ----> new_salv (CL_SALV_TABLE=>FACTORY) ----> refresh
  attributes; no SALV call,      apply_display_settings, apply_columns,  on_salv_* event methods
  no exception                   apply_sorts, apply_totals,              -> ZIF_SALVAGE_EVENTS
@@ -499,8 +504,9 @@ Version: `zcl_salvage=>version`, the installed version as `major.minor.patch`, f
   and Extras with the own buttons - as the GUI usability check of the ATC asks.
 - **Testable without a screen.** `display( )` runs the private method `prepare( )` - check the
   configuration, create the `CL_SALV_TABLE`, apply the settings - and only then shows the list. The
-  unit tests in the class (`ltc_salvage`, about 40 tests) call `prepare( )` directly and check
-  every configuration error, the settings handed to SALV and the mapping of button slots.
+  unit tests in the class (`ltc_salvage`, about 60 tests) call `prepare( )` directly and check
+  the configuration errors, the settings handed to SALV, the button slots of the GUI status and
+  the events passed on to the handler.
 - **No copies.** The ALV gets your table by reference, so even large tables cost no extra memory
   and row indexes in events point into your table.
 
@@ -530,6 +536,11 @@ discussed in an issue first.
   - column alignment (`IF_SALV_C_ALIGNMENT`);
   - quick info for cell values (`CL_SALV_TOOLTIPS`);
   - column groups for the layout dialog (`CL_SALV_SPECIFIC_GROUPS`).
+
+  One exception: `refresh( )` passes the constant `IF_SALV_C_REFRESH=>FULL`, which is not in
+  that list. The default soft refresh keeps the filter and the groups of the old rows, so after
+  a row was deleted or added, filtered rows show again and subtotals go; no classic object
+  chooses the refresh mode.
 - **Own buttons:** at most 10 in full screen, none in a dialog box.
 - **Standard tables with structured lines only**, as `CL_SALV_TABLE` itself; `display( )` rejects
   a sorted or hashed table and a table of strings or numbers with message 011.
@@ -553,6 +564,7 @@ discussed in an issue first.
 | `ZSALVAGE_DEMO_03` | Own buttons in full screen, row selection, hotspot click, a dialog box opened from a handler, `refresh( )` |
 | `ZSALVAGE_DEMO_04` | A list with an own button in a docking container on the selection screen |
 | `ZSALVAGE_DEMO_05` | Traffic lights, row and cell colours, a filter, text above and below the list, average and maximum, a currency column, hidden empty columns |
+| `ZSALVAGE_DEMO_06` | Cell selection: a button adds up the selected cells with `selected_cells( )` |
 
 ## Contributing
 
@@ -584,7 +596,7 @@ request, and only when the abaplint check of the pull request is green. Before y
 | `abapdoc` | class and interface definitions too | ABAP Doc is the documentation of the library |
 | `method_length` | 20 statements | Short methods |
 | `use_message_class` | demos excluded | The demos show exception texts with `MESSAGE error TYPE ...`, which the rule cannot tell from a text message |
-| `local_class_naming` | test classes `LTC_` | The unit test classes follow the `ltc_` / `ltd_` / `lth_` naming of the project instead of abaplint's default `LTCL_` |
+| `local_class_naming` | test classes `LTC_`, `LTD_`, `LTH_` | The unit test classes follow the `ltc_` / `ltd_` / `lth_` naming of the project instead of abaplint's default `LTCL_` |
 | `no_dynamic_stuff` | `assign` off | `hide_empty_columns( )` reads the cells of the generic table with `ASSIGN COMPONENT`; the component names come from SALV, not from user input |
 | `unused_variables` | skips `previous` | abaplint's stub of `CX_ROOT` has no constructor, so the `previous` parameter of the exception constructor looks unused |
 
@@ -594,7 +606,7 @@ request, and only when the abaplint check of the pull request is green. Before y
    new options or methods, the major number for changes that break existing calls.
 2. Move the entries under `[Unreleased]` in `CHANGELOG.md` to a section for the new version.
 3. Merge into `main`, pull into a test system, run the unit tests and ATC.
-4. Publish a release with the tag `v` plus the version, for example `v1.1.0`, on that commit.
+4. Publish a release with the tag `v` plus the version, for example `v1.2.0`, on that commit.
    Release tags are never moved or deleted.
 
 ## License
