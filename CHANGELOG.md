@@ -6,6 +6,67 @@ All notable changes to SALVage are documented here. The format follows
 
 ## [Unreleased]
 
+## [1.2.0] - 2026-10-09
+
+Minor release: a new method reads the cells the user selected. Existing calls do not change.
+
+### Added
+
+- `ZCL_SALVAGE->SELECTED_CELLS( )` with the type `CELL_POSITIONS` (row index and column name of
+  every selected cell). Selection mode `cells` offered cell selection before, but the selected
+  cells could not be read.
+- Demo report `ZSALVAGE_DEMO_06`: cell selection, with a button that adds up the selected cells.
+- 23 unit tests (63 in all): `selected_cells( )` before `display( )`, cell types, column
+  formats, position, technical columns, title,
+  striped rows, optimized widths, layout key and initial layout, text below the list, filter
+  sign and default comparison, hidden empty columns, the content of the exception, the button
+  slots of the GUI status, events passed on to the handler, and the fixes below. The local test
+  double `ltd_handler` records what the handler receives; abaplint accepts `LTD_` and `LTH_`
+  test classes next to `LTC_`.
+
+### Fixed
+
+- `selected_rows( )` returns the rows in ascending order, as documented.
+- `refresh( )`, `selected_rows( )` and `selected_cells( )` do nothing when `display( )` raised:
+  they acted on a list that was never shown.
+- `colors_from( )` and `lights_from( )` with a column the table does not have raise message 001
+  (column does not exist) instead of 013 and 015 (wrong type).
+- A click after the handler was cleared with `handled_by( )` no longer dumps.
+- `layout( )` with `is_save_disabled`: the user's default layout is loaded at start again; before,
+  switching off saving also switched off the default layout.
+- A click or double-click on a total or subtotal line no longer reaches the handler. SALV
+  reports it as row 0, so a handler reading `table[ row ]` dumped with
+  `CX_SY_ITAB_LINE_NOT_FOUND`.
+- The GUI status texts are filled for every slot of the status, and restored when the list ends
+  with an exception.
+
+### Changed
+
+- `button( )` stores the name in upper case, like column names. The handler receives it in upper
+  case also in a container, and a name given twice in different case is rejected (message 008).
+
+## [1.1.1] - 2026-10-09
+
+Patch release: `refresh( )` shows deleted and added rows correctly. Existing calls do not change.
+
+### Fixed
+
+- `ZCL_SALVAGE`: `refresh( )` did a soft refresh, which keeps the filter and the groups of the
+  rows the list showed before. After a handler deleted or added rows, rows the filter had
+  hidden showed again, new rows were not sorted or filtered, and subtotals went missing.
+  `refresh( )` now does a full refresh: sorting, filters and totals are applied again to the
+  new content, and the user's sort order, filters and scroll position stay. Tested on SAP
+  S/4HANA 2023 FPS03 with changed, deleted and added rows.
+- Demo reports `ZSALVAGE_DEMO_02`, `_03` and `_04`: the airfare column takes its currency from
+  column `CURRENCY`. Their line types are declared in the report, so SALV did not know the
+  currency and showed amounts in currencies without two decimals wrong, for example JPY
+  amounts 100 times too small.
+
+### Changed
+
+- `refresh( )` uses the constant `IF_SALV_C_REFRESH=>FULL`, which SAP does not list as classic
+  API. It is the one such object in SALVage; see Limitations in the README.
+
 ## [1.1.0] - 2026-10-08
 
 Minor release: the new public constant `ZCL_SALVAGE=>VERSION` extends the API. Existing calls do
