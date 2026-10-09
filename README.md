@@ -439,7 +439,7 @@ The ABAP Doc of every public declaration is the full reference (F2 in ADT).
 |---|---|
 | `display` | Checks the configuration, applies it, shows the list; raises `ZCX_SALVAGE_ERROR` |
 | `selected_rows` | Indexes of the selected rows, while the list is shown |
-| `selected_cells` | Row index and column name of the selected cells, in selection mode `cells` |
+| `selected_cells` | Row index and column name of the selected cells, in selection mode `cells`; whole rows come from `selected_rows` |
 | `refresh` | Shows the current content of the table again, also after rows were deleted or added; sorting, filters and totals are applied again, the user's sort order, filters and scroll position stay |
 | `layout_f4` (static) | F4 help for a layout parameter of a selection screen |
 
@@ -459,7 +459,9 @@ Result types: `row_indexes` (row indexes, from `selected_rows( )`) and `cell_pos
 (`row`, `column`, from `selected_cells( )`).
 
 Selection modes: `zcl_salvage=>selection_modes-single`, `-multiple` (several rows through a
-selection column), `-cells` (single cells or blocks, read with `selected_cells( )`).
+selection column), `-cells` (single cells or blocks, read with `selected_cells( )`). In mode
+`cells` users can also select whole rows with the row selector on the left; those rows come from
+`selected_rows( )`, not from `selected_cells( )`, so read both.
 
 Version: `zcl_salvage=>version`, the installed version as `major.minor.patch`, for example `1.2.0`.
 
@@ -588,7 +590,7 @@ discussed in an issue first.
 | `ZSALVAGE_DEMO_03` | Own buttons in full screen, row selection, hotspot click, a dialog box opened from a handler, `refresh( )` |
 | `ZSALVAGE_DEMO_04` | A list with an own button in a docking container on the selection screen |
 | `ZSALVAGE_DEMO_05` | Traffic lights, row and cell colours, a filter, text above and below the list, average and maximum, a currency column, hidden empty columns |
-| `ZSALVAGE_DEMO_06` | Cell selection: a button adds up the selected cells with `selected_cells( )` |
+| `ZSALVAGE_DEMO_06` | Cell selection: a button adds up the selected cells and whole rows with `selected_cells( )` and `selected_rows( )` |
 
 ## Contributing
 
