@@ -36,6 +36,13 @@ CLASS lcl_cockpit DEFINITION FINAL CREATE PUBLIC.
 
     CONSTANTS flights_button TYPE salv_de_function VALUE 'FLIGHTS'.
 
+    " The flight line is declared here, so the amount needs its currency column named
+    CONSTANTS:
+      BEGIN OF flight_column,
+        price    TYPE lvc_fname VALUE 'PRICE',
+        currency TYPE lvc_fname VALUE 'CURRENCY',
+      END OF flight_column.
+
     CONSTANTS:
       BEGIN OF list_handle,
         carriers TYPE slis_handl VALUE 'CARR',
@@ -122,6 +129,8 @@ CLASS lcl_cockpit IMPLEMENTATION.
   METHOD flights_list.
     result = zcl_salvage=>create( flights
                         )->title( |{ TEXT-t02 } { airline }|
+                        )->column( name     = flight_column-price
+                                   settings = VALUE #( currency_column = flight_column-currency )
                         )->layout( VALUE #( handle = list_handle-flights ) ).
   ENDMETHOD.
 

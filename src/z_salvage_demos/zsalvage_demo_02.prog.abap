@@ -34,6 +34,8 @@ CLASS lcl_demo DEFINITION FINAL CREATE PUBLIC.
         airline        TYPE lvc_fname VALUE 'CARRID',
         connection     TYPE lvc_fname VALUE 'CONNID',
         plane_type     TYPE lvc_fname VALUE 'PLANETYPE',
+        price          TYPE lvc_fname VALUE 'PRICE',
+        currency       TYPE lvc_fname VALUE 'CURRENCY',
         seats_maximum  TYPE lvc_fname VALUE 'SEATSMAX',
         seats_occupied TYPE lvc_fname VALUE 'SEATSOCC',
       END OF column.
@@ -85,6 +87,8 @@ CLASS lcl_demo IMPLEMENTATION.
                           settings = VALUE #( is_key = abap_true )
                )->column( name     = column-plane_type
                           settings = VALUE #( is_hidden = abap_true )
+               )->column( name     = column-price
+                          settings = VALUE #( currency_column = column-currency )
                )->column( name     = column-seats_occupied
                           settings = VALUE #( text = TEXT-c01 )
                )->sort_by( name     = column-airline

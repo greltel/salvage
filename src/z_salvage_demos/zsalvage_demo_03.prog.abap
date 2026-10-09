@@ -39,6 +39,13 @@ CLASS lcl_demo DEFINITION FINAL CREATE PUBLIC.
 
     CONSTANTS airline_column TYPE lvc_fname VALUE 'CARRID'.
 
+    " The flight line is declared here, so the amount needs its currency column named
+    CONSTANTS:
+      BEGIN OF flight_column,
+        price    TYPE lvc_fname VALUE 'PRICE',
+        currency TYPE lvc_fname VALUE 'CURRENCY',
+      END OF flight_column.
+
     CONSTANTS:
       BEGIN OF select_option,
         including TYPE ddsign   VALUE 'I',
@@ -136,7 +143,12 @@ CLASS lcl_demo IMPLEMENTATION.
   METHOD show_flights.
     DATA(flights) = read_flights( airlines ).
     TRY.
-        zcl_salvage=>create( REF #( flights ) )->title( TEXT-t02 )->popup( )->display( ).
+        zcl_salvage=>create( REF #( flights )
+                   )->title( TEXT-t02
+                   )->column( name     = flight_column-price
+                              settings = VALUE #( currency_column = flight_column-currency )
+                   )->popup(
+                   )->display( ).
       CATCH zcx_salvage_error INTO DATA(error).
         MESSAGE error TYPE message_type-status DISPLAY LIKE message_type-error.
     ENDTRY.

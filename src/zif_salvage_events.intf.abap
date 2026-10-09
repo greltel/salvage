@@ -5,7 +5,7 @@
 INTERFACE zif_salvage_events
   PUBLIC.
 
-  "! The user double-clicked a cell.
+  "! The user double-clicked a cell. Not raised for total and subtotal lines.
   "!
   "! @parameter row    | Index of the row in your table. The list sorts your table itself, so
   "!                     table[ row ] is the row the user sees, also after sorting.
@@ -14,7 +14,8 @@ INTERFACE zif_salvage_events
     IMPORTING row    TYPE i
               column TYPE lvc_fname.
 
-  "! The user clicked a cell of a hotspot column (see {@link zcl_salvage.METH:column}).
+  "! The user clicked a cell of a hotspot column (see {@link zcl_salvage.METH:column}). Not raised
+  "! for total and subtotal lines.
   "!
   "! @parameter row    | Index of the row in your table, as for {@link zif_salvage_events.METH:on_double_click}
   "! @parameter column | Name of the column the user clicked
@@ -26,7 +27,7 @@ INTERFACE zif_salvage_events
   "! with {@link zcl_salvage.METH:selected_rows}; call {@link zcl_salvage.METH:refresh} after
   "! changing the table.
   "!
-  "! @parameter button | Name the button was added with
+  "! @parameter button | Name the button was added with, in upper case
   METHODS on_button_click DEFAULT IGNORE
     IMPORTING button TYPE salv_de_function.
 ENDINTERFACE.

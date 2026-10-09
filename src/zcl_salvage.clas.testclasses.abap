@@ -3,6 +3,29 @@
 CLASS ltc_salvage DEFINITION DEFERRED.
 CLASS zcl_salvage DEFINITION LOCAL FRIENDS ltc_salvage.
 
+" Records what ZCL_SALVAGE passes on to the handler of a list
+CLASS ltd_handler DEFINITION FINAL FOR TESTING.
+  PUBLIC SECTION.
+    INTERFACES zif_salvage_events.
+
+    DATA row    TYPE i READ-ONLY.
+    DATA column TYPE lvc_fname READ-ONLY.
+    DATA button TYPE salv_de_function READ-ONLY.
+ENDCLASS.
+
+
+CLASS ltd_handler IMPLEMENTATION.
+  METHOD zif_salvage_events~on_link_click.
+    me->row    = row.
+    me->column = column.
+  ENDMETHOD.
+
+  METHOD zif_salvage_events~on_button_click.
+    me->button = button.
+  ENDMETHOD.
+ENDCLASS.
+
+
 " Runs everything DISPLAY does before the screen (method PREPARE) and checks the outcome:
 " the configuration errors ZCL_SALVAGE must reject, the settings it hands to the CL_SALV_TABLE,
 " and the mapping of full screen button slots. No test opens a list or reads business data.
@@ -18,6 +41,7 @@ CLASS ltc_salvage DEFINITION FINAL FOR TESTING RISK LEVEL HARMLESS DURATION SHOR
         load     TYPE p LENGTH 5 DECIMALS 1,
         light    TYPE c LENGTH 1,
         colors   TYPE lvc_t_scol,
+        remark   TYPE c LENGTH 20,
       END OF flight.
     TYPES flight_rows TYPE STANDARD TABLE OF flight WITH EMPTY KEY.
     TYPES sorted_flights TYPE SORTED TABLE OF flight WITH UNIQUE KEY carrid connid.
@@ -31,6 +55,7 @@ CLASS ltc_salvage DEFINITION FINAL FOR TESTING RISK LEVEL HARMLESS DURATION SHOR
         load     TYPE lvc_fname VALUE 'LOAD',
         light    TYPE lvc_fname VALUE 'LIGHT',
         colors   TYPE lvc_fname VALUE 'COLORS',
+        remark   TYPE lvc_fname VALUE 'REMARK',
         unknown  TYPE lvc_fname VALUE 'NO_SUCH_COLUMN',
       END OF columns.
 
@@ -61,6 +86,28 @@ CLASS ltc_salvage DEFINITION FINAL FOR TESTING RISK LEVEL HARMLESS DURATION SHOR
         second TYPE salv_de_function VALUE 'SECOND',
       END OF buttons.
 
+    " Functions of GUI status SALVAGE_FULLSCREEN for the second and the third own button
+    CONSTANTS:
+      BEGIN OF slots,
+        second TYPE salv_de_function VALUE 'SALVAGE02',
+        third  TYPE salv_de_function VALUE 'SALVAGE03',
+      END OF slots.
+
+    " Signs and comparisons of a filter condition
+    CONSTANTS:
+      BEGIN OF filter_values,
+        excluding TYPE salv_de_selopt_sign   VALUE 'E',
+        equal     TYPE salv_de_selopt_option VALUE 'EQ',
+      END OF filter_values.
+
+    CONSTANTS:
+      BEGIN OF layout_values,
+        name   TYPE slis_vari  VALUE '/TEST',
+        handle TYPE slis_handl VALUE 'HEAD',
+      END OF layout_values.
+
+    CONSTANTS alpha_mask TYPE lvc_edtmsk VALUE '==ALPHA'.
+
     " ZCL_SALVAGE=>VERSION is major.minor.patch, the release tag without the leading v
     CONSTANTS:
       BEGIN OF version_format,
@@ -87,6 +134,16 @@ CLASS ltc_salvage DEFINITION FINAL FOR TESTING RISK LEVEL HARMLESS DURATION SHOR
       IMPORTING list          TYPE REF TO zcl_salvage
                 name          TYPE lvc_fname
       RETURNING VALUE(result) TYPE REF TO cl_salv_column_table
+      RAISING   cx_salv_not_found.
+
+    METHODS function_of
+      IMPORTING list          TYPE REF TO zcl_salvage
+                name          TYPE salv_de_function
+      RETURNING VALUE(result) TYPE REF TO cl_salv_function.
+
+    METHODS first_condition_of
+      IMPORTING list          TYPE REF TO zcl_salvage
+      RETURNING VALUE(result) TYPE REF TO cl_salv_selopt
       RAISING   cx_salv_not_found.
 
     METHODS when_sorted_table_then_raises FOR TESTING.
@@ -125,11 +182,34 @@ CLASS ltc_salvage DEFINITION FINAL FOR TESTING RISK LEVEL HARMLESS DURATION SHOR
     METHODS when_lights_from_then_set     FOR TESTING.
     METHODS when_multiple_then_row_column FOR TESTING.
     METHODS when_top_of_list_then_set     FOR TESTING.
+    METHODS when_not_shown_then_no_cells  FOR TESTING.
+    METHODS when_hotspot_then_cell_type   FOR TESTING RAISING cx_static_check.
+    METHODS when_checkbox_then_cell_type  FOR TESTING RAISING cx_static_check.
+    METHODS when_check_hotspot_then_type  FOR TESTING RAISING cx_static_check.
+    METHODS when_column_format_then_set   FOR TESTING RAISING cx_static_check.
+    METHODS when_position_then_moved      FOR TESTING RAISING cx_static_check.
+    METHODS when_technical_then_technical FOR TESTING RAISING cx_static_check.
+    METHODS when_display_set_then_applied FOR TESTING.
+    METHODS when_layout_then_key_and_name FOR TESTING.
+    METHODS when_end_of_list_then_set     FOR TESTING.
+    METHODS when_excluded_then_sign_e     FOR TESTING RAISING cx_static_check.
+    METHODS when_no_option_then_eq        FOR TESTING RAISING cx_static_check.
+    METHODS when_empty_column_then_hidden FOR TESTING RAISING cx_static_check.
+    METHODS when_no_rows_then_none_hidden FOR TESTING RAISING cx_static_check.
+    METHODS when_error_then_column_in_msg FOR TESTING.
+    METHODS when_not_shown_then_no_rows   FOR TESTING.
+    METHODS when_unknown_color_then_raises FOR TESTING.
+    METHODS when_case_twice_then_raises   FOR TESTING.
 
     METHODS when_slot_then_button_name    FOR TESTING.
     METHODS when_container_then_same_name FOR TESTING.
     METHODS when_unused_slot_then_no_text FOR TESTING.
     METHODS when_slot_text_then_dyntxt    FOR TESTING.
+    METHODS when_buttons_then_slots_known FOR TESTING.
+    METHODS when_link_click_then_handler  FOR TESTING.
+    METHODS when_slot_click_then_button   FOR TESTING.
+    METHODS when_no_handler_then_no_dump  FOR TESTING.
+    METHODS when_total_click_then_ignored FOR TESTING.
 
     METHODS when_version_then_semantic    FOR TESTING.
 ENDCLASS.
@@ -176,6 +256,21 @@ CLASS ltc_salvage IMPLEMENTATION.
 
   METHOD column_of.
     result = CAST #( list->salv->get_columns( )->get_column( name ) ).
+  ENDMETHOD.
+
+  METHOD function_of.
+    DATA(functions) = list->salv->get_functions( )->get_functions( ).
+    LOOP AT functions INTO DATA(entry).
+      IF entry-r_function->get_name( ) = name.
+        result = entry-r_function.
+        RETURN.
+      ENDIF.
+    ENDLOOP.
+  ENDMETHOD.
+
+  METHOD first_condition_of.
+    DATA(conditions) = list->salv->get_filters( )->get_filter( columns-airline )->get( ).
+    result = conditions[ 1 ].
   ENDMETHOD.
 
   METHOD when_sorted_table_then_raises.
@@ -609,6 +704,321 @@ CLASS ltc_salvage IMPLEMENTATION.
     " Then
     cl_abap_unit_assert=>assert_bound( act = list->salv->get_top_of_list( )
                                        msg = `The text above the list must be set` ).
+  ENDMETHOD.
+
+  METHOD when_not_shown_then_no_cells.
+    " Given a list with cell selection that is not shown yet
+    DATA(list) = new_list( )->selection( zcl_salvage=>selection_modes-cells ).
+    " When
+    DATA(cells) = list->selected_cells( ).
+    " Then
+    cl_abap_unit_assert=>assert_initial( act = cells
+                                         msg = `Before DISPLAY no cell can be selected` ).
+  ENDMETHOD.
+
+  METHOD when_hotspot_then_cell_type.
+    " Given
+    DATA(list) = new_list( )->column( name     = columns-airline
+                                      settings = VALUE #( is_hotspot = abap_true ) ).
+    " When
+    list->prepare( ).
+    " Then
+    cl_abap_unit_assert=>assert_equals( act = column_of( list = list
+                                                         name = columns-airline )->get_cell_type( )
+                                        exp = if_salv_c_cell_type=>hotspot
+                                        msg = `A hotspot column must have cells that are links` ).
+  ENDMETHOD.
+
+  METHOD when_checkbox_then_cell_type.
+    " Given
+    DATA(list) = new_list( )->column( name     = columns-light
+                                      settings = VALUE #( is_checkbox = abap_true ) ).
+    " When
+    list->prepare( ).
+    " Then
+    cl_abap_unit_assert=>assert_equals( act = column_of( list = list
+                                                         name = columns-light )->get_cell_type( )
+                                        exp = if_salv_c_cell_type=>checkbox
+                                        msg = `A checkbox column must show checkboxes` ).
+  ENDMETHOD.
+
+  METHOD when_check_hotspot_then_type.
+    " Given
+    DATA(list) = new_list( )->column( name     = columns-light
+                                      settings = VALUE #( is_checkbox = abap_true
+                                                          is_hotspot  = abap_true ) ).
+    " When
+    list->prepare( ).
+    " Then
+    cl_abap_unit_assert=>assert_equals( act = column_of( list = list
+                                                         name = columns-light )->get_cell_type( )
+                                        exp = if_salv_c_cell_type=>checkbox_hotspot
+                                        msg = `Checkbox and hotspot must give clickable checkboxes` ).
+  ENDMETHOD.
+
+  METHOD when_column_format_then_set.
+    " Given
+    DATA(list) = new_list( )->column( name     = columns-airline
+                                      settings = VALUE #( tooltip   = `Code of the airline`
+                                                          edit_mask = alpha_mask
+                                                          color     = VALUE #( col = col_positive ) ) ).
+    " When
+    list->prepare( ).
+    " Then
+    DATA(column) = column_of( list = list
+                              name = columns-airline ).
+    cl_abap_unit_assert=>assert_equals( act = column->get_tooltip( )
+                                        exp = CONV lvc_tip( `Code of the airline` )
+                                        msg = `The tooltip must be the quick info of the header` ).
+    cl_abap_unit_assert=>assert_equals( act = column->get_edit_mask( )
+                                        exp = alpha_mask
+                                        msg = `The edit mask must be handed to SALV` ).
+    cl_abap_unit_assert=>assert_equals( act = column->get_color( )-col
+                                        exp = col_positive
+                                        msg = `The colour must be the colour of the column` ).
+  ENDMETHOD.
+
+  METHOD when_position_then_moved.
+    " Given
+    DATA(list) = new_list( )->column( name     = columns-price
+                                      settings = VALUE #( position = 1 ) ).
+    " When
+    list->prepare( ).
+    " Then
+    cl_abap_unit_assert=>assert_equals( act = list->salv->get_columns( )->get_column_position( columns-price )
+                                        exp = 1
+                                        msg = `PRICE must be moved to the first position` ).
+  ENDMETHOD.
+
+  METHOD when_technical_then_technical.
+    " Given
+    DATA(list) = new_list( )->column( name     = columns-price
+                                      settings = VALUE #( is_technical = abap_true ) ).
+    " When
+    list->prepare( ).
+    " Then
+    cl_abap_unit_assert=>assert_true( act = column_of( list = list
+                                                       name = columns-price )->is_technical( )
+                                      msg = `A technical column must never be shown` ).
+  ENDMETHOD.
+
+  METHOD when_display_set_then_applied.
+    " Given
+    DATA(list) = new_list( )->title( `Flights` )->striped( )->optimized( ).
+    " When
+    list->prepare( ).
+    " Then
+    DATA(display_settings) = list->salv->get_display_settings( ).
+    cl_abap_unit_assert=>assert_equals( act = display_settings->get_list_header( )
+                                        exp = CONV lvc_title( `Flights` )
+                                        msg = `The title must be the list header` ).
+    cl_abap_unit_assert=>assert_true( act = display_settings->is_striped_pattern( )
+                                      msg = `STRIPED must give alternating colours` ).
+    cl_abap_unit_assert=>assert_true( act = list->salv->get_columns( )->is_optimized( )
+                                      msg = `OPTIMIZED must fit the widths of all columns` ).
+  ENDMETHOD.
+
+  METHOD when_layout_then_key_and_name.
+    " Given
+    DATA(list) = new_list( )->layout( VALUE #( name   = layout_values-name
+                                               handle = layout_values-handle ) ).
+    " When
+    list->prepare( ).
+    " Then
+    DATA(layout) = list->salv->get_layout( ).
+    cl_abap_unit_assert=>assert_equals( act = layout->get_key( )-handle
+                                        exp = layout_values-handle
+                                        msg = `The handle must be part of the layout key` ).
+    cl_abap_unit_assert=>assert_equals( act = layout->get_initial_layout( )
+                                        exp = layout_values-name
+                                        msg = `The named layout must be shown at start` ).
+  ENDMETHOD.
+
+  METHOD when_end_of_list_then_set.
+    " Given
+    DATA(list) = new_list( )->end_of_list( VALUE #( lines = VALUE #( ( `Last line` ) ) ) ).
+    " When
+    list->prepare( ).
+    " Then
+    cl_abap_unit_assert=>assert_bound( act = list->salv->get_end_of_list( )
+                                       msg = `The text below the list must be set` ).
+  ENDMETHOD.
+
+  METHOD when_excluded_then_sign_e.
+    " Given
+    DATA(list) = new_list( )->filter_by( name     = columns-airline
+                                         settings = VALUE #( is_excluded = abap_true
+                                                             low         = 'LH' ) ).
+    " When
+    list->prepare( ).
+    " Then
+    cl_abap_unit_assert=>assert_equals( act = first_condition_of( list )->get_sign( )
+                                        exp = filter_values-excluding
+                                        msg = `An excluding condition must have sign E` ).
+  ENDMETHOD.
+
+  METHOD when_no_option_then_eq.
+    " Given a condition without comparison
+    DATA(list) = new_list( )->filter_by( name     = columns-airline
+                                         settings = VALUE #( low = 'LH' ) ).
+    " When
+    list->prepare( ).
+    " Then
+    cl_abap_unit_assert=>assert_equals( act = first_condition_of( list )->get_option( )
+                                        exp = filter_values-equal
+                                        msg = `A condition without comparison must compare with EQ` ).
+  ENDMETHOD.
+
+  METHOD when_empty_column_then_hidden.
+    " Given REMARK, which is empty in every row
+    DATA(list) = new_list( )->hide_empty_columns( ).
+    " When
+    list->prepare( ).
+    " Then
+    cl_abap_unit_assert=>assert_false( act = column_of( list = list
+                                                        name = columns-remark )->is_visible( )
+                                       msg = `A column empty in all rows must be hidden` ).
+    cl_abap_unit_assert=>assert_true( act = column_of( list = list
+                                                       name = columns-airline )->is_visible( )
+                                      msg = `A column with values must stay visible` ).
+  ENDMETHOD.
+
+  METHOD when_no_rows_then_none_hidden.
+    " Given a table without rows
+    CLEAR flights.
+    DATA(list) = new_list( )->hide_empty_columns( ).
+    " When
+    list->prepare( ).
+    " Then
+    cl_abap_unit_assert=>assert_true( act = column_of( list = list
+                                                       name = columns-remark )->is_visible( )
+                                      msg = `An empty table must not hide its columns` ).
+  ENDMETHOD.
+
+  METHOD when_error_then_column_in_msg.
+    " Given
+    DATA(list) = new_list( )->column( name     = columns-unknown
+                                      settings = VALUE #( is_key = abap_true ) ).
+    " When
+    TRY.
+        list->prepare( ).
+        cl_abap_unit_assert=>fail( msg = `An unknown column must be rejected` ).
+      CATCH zcx_salvage_error INTO DATA(error).
+        " Then
+        cl_abap_unit_assert=>assert_equals( act = CONV lvc_fname( error->if_t100_dyn_msg~msgv1 )
+                                            exp = columns-unknown
+                                            msg = `The message must name the unknown column` ).
+        cl_abap_unit_assert=>assert_bound( act = error->previous
+                                           msg = `The exception of SALV must be kept as PREVIOUS` ).
+    ENDTRY.
+  ENDMETHOD.
+
+  METHOD when_not_shown_then_no_rows.
+    " Given a list whose SALV exists but was never shown
+    DATA(list) = new_list( )->selection( zcl_salvage=>selection_modes-multiple ).
+    list->prepare( ).
+    " When
+    list->refresh( ).
+    DATA(rows) = list->selected_rows( ).
+    " Then
+    cl_abap_unit_assert=>assert_initial( act = rows
+                                         msg = `Before DISPLAY no row can be selected` ).
+  ENDMETHOD.
+
+  METHOD when_unknown_color_then_raises.
+    " Given
+    DATA(list) = new_list( )->colors_from( columns-unknown ).
+    " When
+    DATA(message) = rejection_of( list ).
+    " Then
+    cl_abap_unit_assert=>assert_equals( act = message
+                                        exp = messages-unknown_column
+                                        msg = `An unknown colour column must be reported as unknown` ).
+  ENDMETHOD.
+
+  METHOD when_case_twice_then_raises.
+    " Given the same button name in lower and in upper case
+    DATA(list) = new_list( )->button( name     = 'first'
+                                      settings = VALUE #( text = `Lower` )
+                           )->button( name     = buttons-first
+                                      settings = VALUE #( text = `Upper` ) ).
+    " When
+    DATA(message) = rejection_of( list ).
+    " Then
+    cl_abap_unit_assert=>assert_equals( act = message
+                                        exp = messages-duplicate_button
+                                        msg = `Button names must not depend on case` ).
+  ENDMETHOD.
+
+  METHOD when_buttons_then_slots_known.
+    " Given a full screen list with two own buttons
+    DATA(list) = two_button_list( ).
+    " When
+    list->prepare( ).
+    " Then the functions of GUI status SALVAGE_FULLSCREEN are known to SALV; whether a slot is
+    " hidden cannot be read back, CL_SALV_FUNCTION has no getter for it
+    cl_abap_unit_assert=>assert_bound( act = function_of( list = list
+                                                          name = slots-second )
+                                       msg = `GUI status SALVAGE_FULLSCREEN of ZSALVAGE_GUI must be set` ).
+    cl_abap_unit_assert=>assert_bound( act = function_of( list = list
+                                                          name = slots-third )
+                                       msg = `The status must offer the unused slots too` ).
+  ENDMETHOD.
+
+  METHOD when_link_click_then_handler.
+    " Given
+    DATA(handler) = NEW ltd_handler( ).
+    DATA(list) = new_list( )->handled_by( handler ).
+    " When SALV reports a click on a hotspot
+    list->on_salv_link_click( row    = 2
+                              column = columns-airline ).
+    " Then
+    cl_abap_unit_assert=>assert_equals( act = handler->row
+                                        exp = 2
+                                        msg = `The handler must get the row` ).
+    cl_abap_unit_assert=>assert_equals( act = handler->column
+                                        exp = columns-airline
+                                        msg = `The handler must get the column` ).
+  ENDMETHOD.
+
+  METHOD when_slot_click_then_button.
+    " Given a full screen list with two own buttons
+    DATA(handler) = NEW ltd_handler( ).
+    DATA(list) = two_button_list( )->handled_by( handler ).
+    " When SALV reports the function of the second slot
+    list->on_salv_added_function( slots-second ).
+    " Then
+    cl_abap_unit_assert=>assert_equals( act = handler->button
+                                        exp = buttons-second
+                                        msg = `The handler must get the name of the second button` ).
+  ENDMETHOD.
+
+  METHOD when_total_click_then_ignored.
+    " Given
+    DATA(handler) = NEW ltd_handler( ).
+    DATA(list) = new_list( )->handled_by( handler ).
+    " When SALV reports clicks on a total line, which come as row 0
+    list->on_salv_link_click( row    = 0
+                              column = columns-occupied ).
+    list->on_salv_double_click( row    = 0
+                                column = columns-occupied ).
+    " Then
+    cl_abap_unit_assert=>assert_initial( act = handler->column
+                                         msg = `A click on a total line must not reach the handler` ).
+  ENDMETHOD.
+
+  METHOD when_no_handler_then_no_dump.
+    " Given a list whose handler was cleared
+    DATA no_handler TYPE REF TO zif_salvage_events.
+    DATA(list) = new_list( )->handled_by( no_handler ).
+    " When SALV reports a double-click
+    TRY.
+        list->on_salv_double_click( row    = 1
+                                    column = columns-airline ).
+      CATCH cx_sy_ref_is_initial.
+        " Then
+        cl_abap_unit_assert=>fail( msg = `An event without handler must do nothing` ).
+    ENDTRY.
   ENDMETHOD.
 
   METHOD when_slot_then_button_name.

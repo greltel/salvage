@@ -124,6 +124,18 @@ CLASS zcl_salvage DEFINITION
     TYPES row_indexes TYPE STANDARD TABLE OF i WITH EMPTY KEY.
 
     TYPES:
+      "! One selected cell, for {@link zcl_salvage.METH:selected_cells}.
+      BEGIN OF cell_position,
+        "! Index of the row in the displayed table, as for {@link zcl_salvage.METH:selected_rows}
+        row    TYPE i,
+        "! Name of the column
+        column TYPE lvc_fname,
+      END OF cell_position.
+
+    "! Cells of the displayed table.
+    TYPES cell_positions TYPE STANDARD TABLE OF cell_position WITH EMPTY KEY.
+
+    TYPES:
       "! Technical type of {@link zcl_salvage.DATA:slot_texts}: one dynamic function text per
       "! button slot of GUI status SALVAGE_FULLSCREEN in program ZSALVAGE_GUI.
       BEGIN OF function_slot_texts,
@@ -146,13 +158,13 @@ CLASS zcl_salvage DEFINITION
         single   TYPE selection_mode VALUE 1,
         "! Several rows, through a selection column on the left
         multiple TYPE selection_mode VALUE 2,
-        "! Single cells or blocks of cells
+        "! Single cells or blocks of cells; read them with {@link zcl_salvage.METH:selected_cells}
         cells    TYPE selection_mode VALUE 3,
       END OF selection_modes.
 
     "! Version of SALVage in this system, as major.minor.patch of semantic versioning. It
     "! matches the release tag on GitHub without the leading v; quote it when you report an issue.
-    CONSTANTS version TYPE string VALUE `1.1.0`.
+    CONSTANTS version TYPE string VALUE `1.2.0`.
 
     "! Technical, not for use in reports: the texts of the own buttons of the fullscreen list
     "! that is shown right now. GUI status SALVAGE_FULLSCREEN of program ZSALVAGE_GUI reads them
@@ -305,7 +317,8 @@ CLASS zcl_salvage DEFINITION
       IMPORTING settings    TYPE layout_settings
       RETURNING VALUE(self) TYPE REF TO zcl_salvage.
 
-    "! Lets the user select rows or cells; read them with {@link zcl_salvage.METH:selected_rows}.
+    "! Lets the user select rows or cells; read rows with {@link zcl_salvage.METH:selected_rows}
+    "! and cells with {@link zcl_salvage.METH:selected_cells}.
     "!
     "! @parameter mode | A component of {@link zcl_salvage.DATA:selection_modes}
     "! @parameter self | This list, for the next call of the chain
@@ -318,7 +331,7 @@ CLASS zcl_salvage DEFINITION
     "! {@link zcl_salvage.METH:handled_by}. A fullscreen list offers 10 own buttons, a list in a
     "! container any number, a dialog box ({@link zcl_salvage.METH:popup}) none.
     "!
-    "! @parameter name     | Name of the button, passed to the handler on a click
+    "! @parameter name     | Name of the button, passed to the handler on a click in upper case
     "! @parameter settings | Text, icon and quick info
     "! @parameter self     | This list, for the next call of the chain
     METHODS button
@@ -371,8 +384,18 @@ CLASS zcl_salvage DEFINITION
     METHODS selected_rows
       RETURNING VALUE(result) TYPE row_indexes.
 
+    "! Cells the user has selected in selection mode cells, while the list is shown, for example
+    "! in an event handler.
+    "!
+    "! @parameter result | Row index in the table and column name of every selected cell;
+    "!                     empty before {@link zcl_salvage.METH:display}
+    METHODS selected_cells
+      RETURNING VALUE(result) TYPE cell_positions.
+
     "! Shows the current content of the table again, for example after an event handler
-    "! changed it. The scroll position stays. Does nothing before {@link zcl_salvage.METH:display}.
+    "! changed, deleted or added rows. Sorting, filters and totals are applied again to the
+    "! new content; the sort order and the filters the user set, and the scroll position, stay.
+    "! Does nothing before {@link zcl_salvage.METH:display}.
     METHODS refresh.
 
   PRIVATE SECTION.
@@ -514,7 +537,8 @@ CLASS zcl_salvage DEFINITION
 
     METHODS column_type
       IMPORTING name          TYPE lvc_fname
-      RETURNING VALUE(result) TYPE REF TO cl_abap_datadescr.
+      RETURNING VALUE(result) TYPE REF TO cl_abap_datadescr
+      RAISING   zcx_salvage_error.
 
     METHODS is_color_table
       IMPORTING descriptor    TYPE REF TO cl_abap_datadescr
@@ -612,7 +636,7 @@ CLASS zcl_salvage DEFINITION
 
     METHODS raise_unknown_column
       IMPORTING name     TYPE lvc_fname
-                previous TYPE REF TO cx_root
+                previous TYPE REF TO cx_root OPTIONAL
       RAISING   zcx_salvage_error.
 
     METHODS raise_color_column_error
@@ -790,7 +814,7 @@ CLASS ZCL_SALVAGE IMPLEMENTATION.
 
 
   METHOD button.
-    INSERT VALUE #( name     = name
+    INSERT VALUE #( name     = to_upper( name )
                     settings = settings ) INTO TABLE buttons.
     self = me.
   ENDMETHOD.
@@ -825,16 +849,23 @@ CLASS ZCL_SALVAGE IMPLEMENTATION.
 
 
   METHOD selected_rows.
-    IF salv IS BOUND.
+    " After a DISPLAY that raised, SALV exists but was never shown
+    IF is_displayed = abap_true.
       result = salv->get_selections( )->get_selected_rows( ).
+      SORT result BY table_line.
     ENDIF.
   ENDMETHOD.
 
 
   METHOD refresh.
-    IF salv IS BOUND.
-      salv->refresh( s_stable = VALUE #( row = abap_true
-                                         col = abap_true ) ).
+    " A soft refresh keeps the filter and the groups of the old rows: after a row was deleted or
+    " added, filtered rows show and subtotals go. The full refresh keeps the sort order and the
+    " filters, also the user's. IF_SALV_C_REFRESH is not classified as classic API; it is the one
+    " exception, because no classic object chooses the refresh mode
+    IF is_displayed = abap_true.
+      salv->refresh( s_stable     = VALUE #( row = abap_true
+                                             col = abap_true )
+                     refresh_mode = if_salv_c_refresh=>full ).
     ENDIF.
   ENDMETHOD.
 
@@ -1331,22 +1362,22 @@ CLASS ZCL_SALVAGE IMPLEMENTATION.
     " texts must not stay when the user comes back here
     DATA(texts_of_outer_list) = slot_texts.
     slot_texts = fullscreen_texts( ).
-    salv->display( ).
+    TRY.
+        salv->display( ).
+      CLEANUP.
+        slot_texts = texts_of_outer_list.
+    ENDTRY.
     slot_texts = texts_of_outer_list.
   ENDMETHOD.
 
 
   METHOD fullscreen_texts.
-    result = VALUE #( f01 = slot_text( 1 )
-                      f02 = slot_text( 2 )
-                      f03 = slot_text( 3 )
-                      f04 = slot_text( 4 )
-                      f05 = slot_text( 5 )
-                      f06 = slot_text( 6 )
-                      f07 = slot_text( 7 )
-                      f08 = slot_text( 8 )
-                      f09 = slot_text( 9 )
-                      f10 = slot_text( 10 ) ).
+    " One component of FUNCTION_SLOT_TEXTS per slot of the GUI status, in slot order
+    DO gui-slots TIMES.
+      ASSIGN COMPONENT sy-index OF STRUCTURE result TO FIELD-SYMBOL(<text>).
+      ASSERT sy-subrc = 0.
+      <text> = slot_text( sy-index ).
+    ENDDO.
   ENDMETHOD.
 
 
@@ -1381,19 +1412,27 @@ CLASS ZCL_SALVAGE IMPLEMENTATION.
 
 
   METHOD on_salv_double_click.
-    handler->on_double_click( row    = row
-                              column = column ).
+    " HANDLED_BY may have cleared the handler after the list was shown. Total and subtotal lines
+    " come as row 0, which is no row of the table
+    IF handler IS BOUND AND row > 0.
+      handler->on_double_click( row    = row
+                                column = column ).
+    ENDIF.
   ENDMETHOD.
 
 
   METHOD on_salv_link_click.
-    handler->on_link_click( row    = row
-                            column = column ).
+    IF handler IS BOUND AND row > 0.
+      handler->on_link_click( row    = row
+                              column = column ).
+    ENDIF.
   ENDMETHOD.
 
 
   METHOD on_salv_added_function.
-    handler->on_button_click( button_name( e_salv_function ) ).
+    IF handler IS BOUND.
+      handler->on_button_click( button_name( e_salv_function ) ).
+    ENDIF.
   ENDMETHOD.
 
 
@@ -1478,8 +1517,7 @@ CLASS ZCL_SALVAGE IMPLEMENTATION.
         component_not_found = 1
         OTHERS              = 2 ).
     IF sy-subrc <> 0.
-      " An unknown column has no type; the callers treat it as unsuitable
-      CLEAR result.
+      raise_unknown_column( name ).
     ENDIF.
   ENDMETHOD.
 
@@ -1530,5 +1568,15 @@ CLASS ZCL_SALVAGE IMPLEMENTATION.
     check_configuration( ).
     salv = new_salv( ).
     apply_settings( ).
+  ENDMETHOD.
+
+
+  METHOD selected_cells.
+    IF is_displayed = abap_true.
+      DATA(cells) = salv->get_selections( )->get_selected_cells( ).
+      result = VALUE #( FOR cell IN cells
+                        ( row    = cell-row
+                          column = cell-columnname ) ).
+    ENDIF.
   ENDMETHOD.
 ENDCLASS.
