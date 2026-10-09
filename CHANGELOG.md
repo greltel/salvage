@@ -42,6 +42,15 @@ Minor release: a new method reads the cells the user selected. Existing calls do
 
 ### Changed
 
+- Documentation (ABAP Doc and README): the table passed to `create( )` must be changeable, a
+  write-protected table ends in `MOVE_TO_LIT_NOTALLOWED_NODATA` when the list sorts; every list
+  of a program needs its own layout handle; one list per container, new data through
+  `refresh( )`; a container needs SAP GUI, background jobs show the list in full screen; the
+  `@raising` text of `display( )` names all kinds of configuration errors. Two new rows in
+  Troubleshooting.
+- Demo report `ZSALVAGE_DEMO_03`: the airline list and the flights in the dialog box have layout
+  handles of their own.
+- GitHub workflow: abaplint runs on Node.js 22.
 - `button( )` stores the name in upper case, like column names. The handler receives it in upper
   case also in a container, and a name given twice in different case is rejected (message 008).
 
