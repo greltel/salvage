@@ -46,6 +46,12 @@
      <ENTRY>SALVage demo 06: cell selection.</ENTRY>
      <LENGTH>32</LENGTH>
     </item>
+    <item>
+     <ID>S</ID>
+     <KEY>CARRIERS</KEY>
+     <ENTRY>Airline</ENTRY>
+     <LENGTH>15</LENGTH>
+    </item>
    </TPOOL>
   </asx:values>
  </asx:abap>
