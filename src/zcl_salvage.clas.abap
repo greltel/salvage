@@ -64,9 +64,11 @@ CLASS zcl_salvage DEFINITION
       BEGIN OF layout_settings,
         "! Layout shown at start; initial: the default layout of the user, if there is one
         name             TYPE slis_vari,
-        "! Tells apart several lists of the same program, for example HEAD and ITEM
+        "! Tells apart several lists of the same program, for example HEAD and ITEM. Give every
+        "! list of a program its own handle: lists with the same handle share their layouts, so a
+        "! default layout saved in one list is applied to the other.
         handle           TYPE slis_handl,
-        "! abap_true: users can choose layouts but cannot save them
+        "! abap_true: users can choose layouts, their default layout included, but cannot save them
         is_save_disabled TYPE abap_bool,
       END OF layout_settings.
 
@@ -176,7 +178,10 @@ CLASS zcl_salvage DEFINITION
     "! @parameter table  | Reference to the rows to show, a standard table whose lines are
     "!                     structures, for example REF #( flights ); a table of strings or
     "!                     numbers cannot be shown. The list works on this table itself: when
-    "!                     the user sorts, the table is sorted. It must stay alive until
+    "!                     the user sorts, the table is sorted. So it must be changeable: a
+    "!                     reference to an IMPORTING parameter or a constant ends in runtime
+    "!                     error MOVE_TO_LIT_NOTALLOWED_NODATA as soon as the list sorts; pass a
+    "!                     variable or a copy. It must stay alive until
     "!                     {@link zcl_salvage.METH:display} has returned, and in a container as
     "!                     long as the list is visible.
     "! @parameter result | The new list, ready for the configuration methods
@@ -359,7 +364,10 @@ CLASS zcl_salvage DEFINITION
 
     "! Shows the list in a GUI container of your screen, for example a docking container,
     "! instead of the full screen. {@link zcl_salvage.METH:display} then returns at once, so keep
-    "! a reference to this object as long as the list is visible.
+    "! a reference to this object as long as the list is visible. Create one list per container
+    "! and display it once; for new data change the table and call
+    "! {@link zcl_salvage.METH:refresh}. A container needs SAP GUI: a report that may run in a
+    "! background job shows the list in full screen there, which writes it to the spool.
     "!
     "! @parameter container | Container the list fills; an initial reference makes
     "!                        {@link zcl_salvage.METH:display} raise an error
@@ -371,9 +379,13 @@ CLASS zcl_salvage DEFINITION
     "! Checks the configuration, applies it and shows the list. A fullscreen list or a dialog
     "! box returns when the user leaves it; a list in a container returns at once.
     "!
-    "! @raising zcx_salvage_error | The configuration names a column the table does not have, or
-    "!                              asks for something the display mode does not offer; nothing
-    "!                              is shown
+    "! @raising zcx_salvage_error | The configuration does not fit the table or the display mode,
+    "!                              for example a column the table does not have, a total on a
+    "!                              text column, a filter comparison or total kind that does not
+    "!                              exist, a colour or light column of the wrong type, too many
+    "!                              buttons, impossible dialog box coordinates, a container that
+    "!                              is missing; or the list was displayed already. The message of
+    "!                              class ZSALVAGE says which; nothing is shown
     METHODS display
       RAISING zcx_salvage_error.
 
@@ -1271,10 +1283,11 @@ CLASS ZCL_SALVAGE IMPLEMENTATION.
     DATA(salv_layout) = salv->get_layout( ).
     salv_layout->set_key( VALUE #( report = program
                                    handle = layout_options-handle ) ).
+    " The user's default layout is loaded also when saving is off; only saving depends on it
+    salv_layout->set_default( abap_true ).
     IF layout_options-is_save_disabled = abap_false.
       " The default of SET_SAVE_RESTRICTION allows user-specific and global layouts
       salv_layout->set_save_restriction( ).
-      salv_layout->set_default( abap_true ).
     ENDIF.
     IF layout_options-name IS NOT INITIAL.
       salv_layout->set_initial_layout( layout_options-name ).

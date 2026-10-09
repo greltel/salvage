@@ -39,6 +39,13 @@ CLASS lcl_demo DEFINITION FINAL CREATE PUBLIC.
 
     CONSTANTS airline_column TYPE lvc_fname VALUE 'CARRID'.
 
+    " Each list keeps its own layouts; a layout saved in the dialog box must not reach the airlines
+    CONSTANTS:
+      BEGIN OF list_handle,
+        airlines TYPE slis_handl VALUE 'CARR',
+        flights  TYPE slis_handl VALUE 'FLTS',
+      END OF list_handle.
+
     " The flight line is declared here, so the amount needs its currency column named
     CONSTANTS:
       BEGIN OF flight_column,
@@ -85,6 +92,7 @@ CLASS lcl_demo IMPLEMENTATION.
     carriers = read_carriers( ).
     alv = zcl_salvage=>create( REF #( carriers )
                      )->title( TEXT-t01
+                     )->layout( VALUE #( handle = list_handle-airlines )
                      )->column( name     = airline_column
                                 settings = VALUE #( is_hotspot = abap_true )
                      )->selection( zcl_salvage=>selection_modes-multiple
@@ -145,6 +153,7 @@ CLASS lcl_demo IMPLEMENTATION.
     TRY.
         zcl_salvage=>create( REF #( flights )
                    )->title( TEXT-t02
+                   )->layout( VALUE #( handle = list_handle-flights )
                    )->column( name     = flight_column-price
                               settings = VALUE #( currency_column = flight_column-currency )
                    )->popup(

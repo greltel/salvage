@@ -12,6 +12,36 @@
    </PROGDIR>
    <TPOOL>
     <item>
+     <ID>I</ID>
+     <KEY>B01</KEY>
+     <ENTRY>Sum</ENTRY>
+     <LENGTH>13</LENGTH>
+    </item>
+    <item>
+     <ID>I</ID>
+     <KEY>M01</KEY>
+     <ENTRY>Capacity of the selected cells:</ENTRY>
+     <LENGTH>62</LENGTH>
+    </item>
+    <item>
+     <ID>I</ID>
+     <KEY>M02</KEY>
+     <ENTRY>occupied:</ENTRY>
+     <LENGTH>19</LENGTH>
+    </item>
+    <item>
+     <ID>I</ID>
+     <KEY>Q01</KEY>
+     <ENTRY>Add up the selected cells of Capacity and Occupied</ENTRY>
+     <LENGTH>100</LENGTH>
+    </item>
+    <item>
+     <ID>I</ID>
+     <KEY>T01</KEY>
+     <ENTRY>Flights: select cells of Capacity and Occupied</ENTRY>
+     <LENGTH>92</LENGTH>
+    </item>
+    <item>
      <ID>R</ID>
      <ENTRY>SALVage demo 06: cell selection.</ENTRY>
      <LENGTH>32</LENGTH>
