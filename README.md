@@ -160,6 +160,16 @@ START-OF-SELECTION.
 `create( )` takes a **reference** to your table. The ALV works on the table itself: when the user
 sorts the list, your table is sorted, and the row index of every event points into your table.
 Keep the table alive until `display( )` returns (for a container: as long as the list is visible).
+Because the list changes the order of its rows, the table must be changeable: a reference to an
+`IMPORTING` parameter or a constant ends in runtime error `MOVE_TO_LIT_NOTALLOWED_NODATA` as soon
+as the list sorts. In a method that receives the rows, pass a variable or a copy:
+
+```abap
+METHOD show.                                   " IMPORTING flights TYPE flight_rows
+  DATA(rows) = flights.                        " a copy the list may sort
+  zcl_salvage=>create( REF #( rows ) )->display( ).
+ENDMETHOD.
+```
 
 ## Usage
 
@@ -286,6 +296,10 @@ their default layout is shown at start. To change that:
 `is_save_disabled = abap_true` lets users choose layouts, their default layout included, but not
 save them.
 
+Give every list of a program its own `handle` when the program shows more than one list, for
+example a list and a dialog box opened from it. Lists with the same handle share their layouts:
+a default layout saved in the dialog box would otherwise be applied to the main list too.
+
 F4 help for a layout parameter on the selection screen:
 
 ```abap
@@ -364,6 +378,11 @@ A list in a container stays on the screen after `display( )` returned. Keep the 
 `ZCL_SALVAGE` object (an attribute, not a local variable) as long as the list is visible, so that
 its events still reach your handler. Demo 04 shows a list in a docking container on the
 selection screen.
+
+Create one list per container and call `display( )` once; to show new data, change the table and
+call `refresh( )`. Calling `display( )` again raises message 009. A container needs SAP GUI: a
+report that may run in a background job shows its list in full screen there (`sy-batch`), which
+writes it to the spool.
 
 ### Errors
 
@@ -543,7 +562,10 @@ discussed in an issue first.
   chooses the refresh mode.
 - **Own buttons:** at most 10 in full screen, none in a dialog box.
 - **Standard tables with structured lines only**, as `CL_SALV_TABLE` itself; `display( )` rejects
-  a sorted or hashed table and a table of strings or numbers with message 011.
+  a sorted or hashed table and a table of strings or numbers with message 011. The table must be
+  changeable, see [Quick start](#quick-start).
+- **Background jobs:** tested with full screen lists, which go to the spool. A container needs
+  SAP GUI, and a dialog box in a background job has not been tested.
 - SALV methods that `CL_SALV_TABLE` inherits from `CL_SALV_MODEL_LIST` and `CL_SALV_MODEL_BASE`
   (for example `SET_SCREEN_STATUS`, `GET_LAYOUT`) are called through `CL_SALV_TABLE`, which is
   classified as classic API.
@@ -553,6 +575,8 @@ discussed in an issue first.
 | Symptom | Cause | Fix |
 |---|---|---|
 | Dump `CX_SALV_OBJECT_NOT_FOUND`, "Object ZSALVAGE_GUI-SALVAGE_FULLSCREEN STATUS not found", for a full screen list with own buttons | Program `ZSALVAGE_GUI` exists without its GUI status, for example because it was created by hand | Pull `ZSALVAGE_GUI` again with abapGit; transaction SE41 must then show status `SALVAGE_FULLSCREEN` with the functions `SALVAGE01` to `SALVAGE10` |
+| Runtime error `MOVE_TO_LIT_NOTALLOWED_NODATA` when the list sorts | The table passed to `create( )` is write-protected, for example an `IMPORTING` parameter or a constant | Pass a reference to a variable, for example a copy of the parameter (see [Quick start](#quick-start)) |
+| The main list opens with columns hidden that the user never hid there | Two lists of the program share their layouts, and a default layout saved in the other list is applied | Give each list its own `handle` in `layout( )` |
 | Message `ZSALVAGE 0nn` shows `amp;` in its text | The text was copied from `zsalvage.msag.xml`, where `&` is written `&amp;` | Correct the text in SE91, or pull the message class with abapGit |
 
 ## Demo reports
