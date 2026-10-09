@@ -161,6 +161,7 @@ CLASS zcl_salvage DEFINITION
         "! Several rows, through a selection column on the left
         multiple TYPE selection_mode VALUE 2,
         "! Single cells or blocks of cells; read them with {@link zcl_salvage.METH:selected_cells}
+        "! and the rows selected as a whole with {@link zcl_salvage.METH:selected_rows}
         cells    TYPE selection_mode VALUE 3,
       END OF selection_modes.
 
@@ -397,7 +398,8 @@ CLASS zcl_salvage DEFINITION
       RETURNING VALUE(result) TYPE row_indexes.
 
     "! Cells the user has selected in selection mode cells, while the list is shown, for example
-    "! in an event handler.
+    "! in an event handler. Rows the user selects as a whole with the row selector on the left
+    "! are not included: read them with {@link zcl_salvage.METH:selected_rows}.
     "!
     "! @parameter result | Row index in the table and column name of every selected cell;
     "!                     empty before {@link zcl_salvage.METH:display}
