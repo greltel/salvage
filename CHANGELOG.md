@@ -15,7 +15,9 @@ Minor release: a new method reads the cells the user selected. Existing calls do
 - `ZCL_SALVAGE->SELECTED_CELLS( )` with the type `CELL_POSITIONS` (row index and column name of
   every selected cell). Selection mode `cells` offered cell selection before, but the selected
   cells could not be read.
-- Demo report `ZSALVAGE_DEMO_06`: cell selection, with a button that adds up the selected cells.
+- Demo report `ZSALVAGE_DEMO_06`: cell selection, with a button that adds up the selected cells
+  and the rows selected as a whole. In mode `cells`, whole rows come from `selected_rows( )`, as
+  the ABAP Doc of `selected_cells( )` says.
 - 23 unit tests (63 in all): `selected_cells( )` before `display( )`, cell types, column
   formats, position, technical columns, title,
   striped rows, optimized widths, layout key and initial layout, text below the list, filter
