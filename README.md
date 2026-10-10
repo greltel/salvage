@@ -115,8 +115,9 @@ report from such a system is welcome as an issue.
 |---|---|
 | SAP GUI for Windows | All demos: full screen with own buttons, dialog box, docking container; the unit tests and ATC |
 | SAP GUI for HTML (WebGUI) | Own buttons and hotspots in full screen, docking container, dialog box opened from a button, traffic lights, colours, text above and below the list |
-| Background job | List in the spool with title, text above and below, traffic lights, colours, and totals per currency |
+| Background job | List in the spool with title, text above and below, traffic lights, colours, and totals per currency; a dialog box (`popup( )`) goes to the spool like a full screen list; the user's default layout applies |
 | Spreadsheet export (XLSX) | Own column headers, text above and below, totals per currency, amounts with the decimals of their currency, hidden columns left out |
+| Large table | 300,000 rows of 11 columns shown in full screen in about 5 seconds; `optimized( )` and `hide_empty_columns( )` add no noticeable time |
 
 ## Installation
 
@@ -578,8 +579,8 @@ discussed in an issue first.
 - **Standard tables with structured lines only**, as `CL_SALV_TABLE` itself; `display( )` rejects
   a sorted or hashed table and a table of strings or numbers with message 011. The table must be
   changeable, see [Quick start](#quick-start).
-- **Background jobs:** tested with full screen lists, which go to the spool. A container needs
-  SAP GUI, and a dialog box in a background job has not been tested.
+- **Background jobs:** full screen lists and dialog boxes go to the spool. A container needs
+  SAP GUI, so a report that may run in a background job shows its list in full screen there.
 - SALV methods that `CL_SALV_TABLE` inherits from `CL_SALV_MODEL_LIST` and `CL_SALV_MODEL_BASE`
   (for example `SET_SCREEN_STATUS`, `GET_LAYOUT`) are called through `CL_SALV_TABLE`, which is
   classified as classic API.
