@@ -41,9 +41,15 @@ Minor release: a new method reads the cells the user selected. Existing calls do
   `CX_SY_ITAB_LINE_NOT_FOUND`.
 - The GUI status texts are filled for every slot of the status, and restored when the list ends
   with an exception.
+- `ZSALVAGE_GUI`: own button 9 was on key combination Shift+Ctrl+0, which SAP GUI no longer
+  supports; it is on Shift+F12 now.
 
 ### Changed
 
+- `ZSALVAGE_GUI`, status `SALVAGE_FULLSCREEN`: new functions select all and deselect all (F5,
+  F6), delete filter, find next, graphic and ABC analysis, and choose on F2, on the keys of SAP's
+  `SALV_TABLE_STANDARD`; details moved to Ctrl+Shift+F3. The Edit and Goto menus list them.
+  Fullscreen lists with own buttons now offer the same everyday functions as lists without.
 - Documentation (ABAP Doc and README): the table passed to `create( )` must be changeable, a
   write-protected table ends in `MOVE_TO_LIT_NOTALLOWED_NODATA` when the list sorts; every list
   of a program needs its own layout handle; one list per container, new data through
