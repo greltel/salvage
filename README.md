@@ -23,7 +23,9 @@ zcl_salvage=>create( REF #( flights )
            )->display( ).
 ```
 
-All ALV toolbar functions are on and users can save layouts, without a line of code for it.
+All ALV toolbar functions are on and users can save layouts, without a line of code for it. A
+fullscreen list with own buttons keeps the functions most lists use; see
+[Limitations](#limitations).
 
 ---
 
@@ -516,13 +518,17 @@ Version: `zcl_salvage=>version`, the installed version as `major.minor.patch`, f
 - **Events by composition.** SALV events are received by private methods and passed to the
   `ZIF_SALVAGE_EVENTS` handler. Its methods are `DEFAULT IGNORE`, so the interface can grow.
 - **Own buttons in full screen.** SALV accepts own buttons in full screen only through an own
-  GUI status. Program `ZSALVAGE_GUI` holds status `SALVAGE_FULLSCREEN`: the standard ALV
-  functions plus ten slots, `SALVAGE01` to `SALVAGE10`, whose texts are dynamic function texts
+  GUI status. Program `ZSALVAGE_GUI` holds status `SALVAGE_FULLSCREEN`: the ALV functions most
+  lists use, on the keys of SAP's status `SALV_TABLE_STANDARD` (details, select and deselect all,
+  sort, set and delete filter, total, subtotals, print preview, spreadsheet, local file, send,
+  graphic, ABC analysis, the layout functions, find and find next), plus ten slots,
+  `SALVAGE01` to `SALVAGE10`, whose texts are dynamic function texts
   read from the static attribute `ZCL_SALVAGE=>SLOT_TEXTS`. `display( )` fills the slots from
   your `button( )` calls, hides the unused ones, and maps a click on a slot back to your button
   name. When a handler opens another fullscreen list, the texts of the first list are restored
   when the user comes back to it. The status also has a menu bar - List, Edit, Goto, Settings,
-  and Extras with the own buttons - as the GUI usability check of the ATC asks.
+  and Extras with the own buttons - as the GUI usability check of the ATC asks. Its texts are in
+  English only.
 - **Testable without a screen.** `display( )` runs the private method `prepare( )` - check the
   configuration, create the `CL_SALV_TABLE`, apply the settings - and only then shows the list. The
   unit tests in the class (`ltc_salvage`, about 60 tests) call `prepare( )` directly and check
@@ -562,7 +568,13 @@ discussed in an issue first.
   that list. The default soft refresh keeps the filter and the groups of the old rows, so after
   a row was deleted or added, filtered rows show again and subtotals go; no classic object
   chooses the refresh mode.
-- **Own buttons:** at most 10 in full screen, none in a dialog box.
+- **Own buttons:** at most 10 in full screen, none in a dialog box. A fullscreen list with own
+  buttons uses the status of `ZSALVAGE_GUI`, which leaves out a few functions of SAP's standard
+  status to make room for the ten slots: the views SAP List Viewer, Microsoft Excel, Lotus 1-2-3
+  and Crystal Reports, word processing, the report-report interface, information, refresh and
+  the column navigation keys. A list without own buttons has them all. The status texts are in
+  English; translate program `ZSALVAGE_GUI` in transaction SE63 where users log on in other
+  languages.
 - **Standard tables with structured lines only**, as `CL_SALV_TABLE` itself; `display( )` rejects
   a sorted or hashed table and a table of strings or numbers with message 011. The table must be
   changeable, see [Quick start](#quick-start).
