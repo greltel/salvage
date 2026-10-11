@@ -73,7 +73,8 @@ CLASS zcl_salvage DEFINITION
       "! Layout (variant) handling, for {@link zcl_salvage.METH:layout}.
       BEGIN OF layout_settings,
         "! Layout shown at start; initial: the default layout of the user, if there is one. A name
-        "! without a saved layout shows the list as without a name, with no message
+        "! without a saved layout shows the list as without a name, with no message; check a name
+        "! the user typed with {@link zcl_salvage.METH:layout_exists}
         name             TYPE slis_vari,
         "! Tells apart several lists of the same program, for example HEAD and ITEM. Give every
         "! list of a program its own handle: lists with the same handle share their layouts, so a
@@ -105,6 +106,18 @@ CLASS zcl_salvage DEFINITION
         "! 60 characters
         tooltip TYPE string,
       END OF button_settings.
+
+    TYPES:
+      "! Standard functions to hide, for {@link zcl_salvage.METH:toolbar}. Hiding them is no
+      "! protection of the data: users can still copy cells, for example with Ctrl+C.
+      BEGIN OF toolbar_settings,
+        "! abap_true: no export to a spreadsheet, a local file, a word processor, HTML, XML, mail,
+        "! send or a folder, and no view in Excel, Lotus or Crystal Reports
+        is_export_disabled TYPE abap_bool,
+        "! abap_true: no printing and no print preview; a background job still writes the list to
+        "! the spool
+        is_print_disabled  TYPE abap_bool,
+      END OF toolbar_settings.
 
     TYPES:
       "! One filter condition, for {@link zcl_salvage.METH:filter_by}: a line of a ranges table
@@ -150,6 +163,9 @@ CLASS zcl_salvage DEFINITION
     "! Cells of the displayed table.
     TYPES cell_positions TYPE STANDARD TABLE OF cell_position WITH EMPTY KEY.
 
+    "! Names of columns, for {@link zcl_salvage.METH:selected_columns}.
+    TYPES column_names TYPE STANDARD TABLE OF lvc_fname WITH EMPTY KEY.
+
     TYPES:
       "! Technical type of {@link zcl_salvage.DATA:slot_texts}: one dynamic function text per
       "! button slot of GUI status SALVAGE_FULLSCREEN in program ZSALVAGE_GUI.
@@ -173,14 +189,15 @@ CLASS zcl_salvage DEFINITION
         single   TYPE selection_mode VALUE 1,
         "! Several rows, through a selection column on the left
         multiple TYPE selection_mode VALUE 2,
-        "! Single cells or blocks of cells; read them with {@link zcl_salvage.METH:selected_cells}
-        "! and the rows selected as a whole with {@link zcl_salvage.METH:selected_rows}
+        "! Single cells or blocks of cells; read them with {@link zcl_salvage.METH:selected_cells},
+        "! the rows selected as a whole with {@link zcl_salvage.METH:selected_rows} and the
+        "! columns selected as a whole with {@link zcl_salvage.METH:selected_columns}
         cells    TYPE selection_mode VALUE 3,
       END OF selection_modes.
 
     "! Version of SALVage in this system, as major.minor.patch of semantic versioning. It
     "! matches the release tag on GitHub without the leading v; quote it when you report an issue.
-    CONSTANTS version TYPE string VALUE `1.4.0`.
+    CONSTANTS version TYPE string VALUE `1.5.0`.
 
     "! Technical, not for use in reports: the texts of the own buttons of the fullscreen list
     "! that is shown right now. GUI status SALVAGE_FULLSCREEN of program ZSALVAGE_GUI reads them
@@ -213,6 +230,20 @@ CLASS zcl_salvage DEFINITION
       IMPORTING current       TYPE slis_vari
                 handle        TYPE slis_handl OPTIONAL
       RETURNING VALUE(result) TYPE slis_vari.
+
+    "! Tells whether a layout of this name is saved for the calling program. Use it to check a
+    "! layout parameter of a selection screen, because {@link zcl_salvage.METH:layout} shows the
+    "! list without a layout, and without a message, when the name is not saved. Message 021 of
+    "! class ZSALVAGE says so, for example MESSAGE e021(zsalvage) WITH name in
+    "! AT SELECTION-SCREEN ON.
+    "!
+    "! @parameter name   | Name of the layout
+    "! @parameter handle | Handle of the list, if the report uses one in {@link zcl_salvage.METH:layout}
+    "! @parameter result | abap_true if the layout is saved; abap_false also for an initial name
+    CLASS-METHODS layout_exists
+      IMPORTING name          TYPE slis_vari
+                handle        TYPE slis_handl OPTIONAL
+      RETURNING VALUE(result) TYPE abap_bool.
 
     "! Sets the header shown above the list.
     "!
@@ -345,8 +376,9 @@ CLASS zcl_salvage DEFINITION
       IMPORTING settings    TYPE layout_settings
       RETURNING VALUE(self) TYPE REF TO zcl_salvage.
 
-    "! Lets the user select rows or cells; read rows with {@link zcl_salvage.METH:selected_rows}
-    "! and cells with {@link zcl_salvage.METH:selected_cells}.
+    "! Lets the user select rows or cells; read rows with {@link zcl_salvage.METH:selected_rows},
+    "! cells with {@link zcl_salvage.METH:selected_cells} and whole columns with
+    "! {@link zcl_salvage.METH:selected_columns}.
     "!
     "! @parameter mode | A component of {@link zcl_salvage.DATA:selection_modes}
     "! @parameter self | This list, for the next call of the chain
@@ -365,6 +397,16 @@ CLASS zcl_salvage DEFINITION
     METHODS button
       IMPORTING name        TYPE salv_de_function
                 settings    TYPE button_settings
+      RETURNING VALUE(self) TYPE REF TO zcl_salvage.
+
+    "! Hides standard functions of the toolbar and its menus, in full screen, in a dialog box and
+    "! in a container. Without this call the list offers all standard functions. Another call
+    "! replaces the settings of the previous one.
+    "!
+    "! @parameter settings | The functions to hide
+    "! @parameter self     | This list, for the next call of the chain
+    METHODS toolbar
+      IMPORTING settings    TYPE toolbar_settings
       RETURNING VALUE(self) TYPE REF TO zcl_salvage.
 
     "! Sets the object that reacts to clicks and to own buttons. Can also be called after
@@ -430,14 +472,23 @@ CLASS zcl_salvage DEFINITION
 
     "! Cells the user has selected in selection mode cells, while the list is shown, for example
     "! in an event handler. Rows the user selects as a whole with the row selector on the left
-    "! are not included: read them with {@link zcl_salvage.METH:selected_rows}. Cells of total
-    "! and subtotal lines are not included either, nor whole columns the user selects by clicking
-    "! the column header.
+    "! are not included: read them with {@link zcl_salvage.METH:selected_rows}. Whole columns the
+    "! user selects by clicking the column header are not included either: read them with
+    "! {@link zcl_salvage.METH:selected_columns}. Nor are cells of total and subtotal lines.
     "!
     "! @parameter result | Row index in the table and column name of every selected cell;
     "!                     empty before {@link zcl_salvage.METH:display}
     METHODS selected_cells
       RETURNING VALUE(result) TYPE cell_positions.
+
+    "! Columns the user has selected as a whole by clicking the column header, while the list is
+    "! shown, for example in an event handler. A selected column stands for all its rows; its
+    "! cells are not part of {@link zcl_salvage.METH:selected_cells}.
+    "!
+    "! @parameter result | Names of the selected columns; empty before
+    "!                     {@link zcl_salvage.METH:display}
+    METHODS selected_columns
+      RETURNING VALUE(result) TYPE column_names.
 
     "! Shows the current content of the table again, for example after an event handler
     "! changed, deleted or added rows. Sorting, filters and totals are applied again to the
@@ -555,6 +606,7 @@ CLASS zcl_salvage DEFINITION
     DATA layout_options      TYPE layout_settings.
     DATA row_selection       TYPE selection_mode.
     DATA buttons             TYPE own_buttons.
+    DATA toolbar_options     TYPE toolbar_settings.
     DATA handler             TYPE REF TO zif_salvage_events.
     DATA popup_area          TYPE popup_settings.
     DATA container           TYPE REF TO cl_gui_container.
@@ -730,6 +782,9 @@ CLASS zcl_salvage DEFINITION
       RAISING   zcx_salvage_error.
 
     METHODS hide_unused_slots
+      IMPORTING functions TYPE REF TO cl_salv_functions_list.
+
+    METHODS hide_standard_functions
       IMPORTING functions TYPE REF TO cl_salv_functions_list.
 
     METHODS apply_popup.
@@ -1383,6 +1438,9 @@ CLASS ZCL_SALVAGE IMPLEMENTATION.
       WHEN output_modes-container.
         add_container_buttons( functions ).
     ENDCASE.
+    " Last: SET_EXPORT_SPREADSHEET changes the flavour of the function list from all functions, set
+    " by SET_ALL, to single functions, and GET_FUNCTIONS in HIDE_UNUSED_SLOTS reads it by flavour
+    hide_standard_functions( functions ).
   ENDMETHOD.
 
 
@@ -1725,5 +1783,53 @@ CLASS ZCL_SALVAGE IMPLEMENTATION.
       result = abap_true.
       RETURN.
     ENDLOOP.
+  ENDMETHOD.
+
+
+  METHOD hide_standard_functions.
+    " After SET_ALL, which shows every standard function
+    IF toolbar_options-is_export_disabled = abap_true.
+      functions->set_export_spreadsheet( abap_false ).
+      functions->set_export_localfile( abap_false ).
+      functions->set_export_wordprocessor( abap_false ).
+      functions->set_export_html( abap_false ).
+      functions->set_export_xml( abap_false ).
+      functions->set_export_mail( abap_false ).
+      functions->set_export_send( abap_false ).
+      functions->set_export_folder( abap_false ).
+      functions->set_view_excel( abap_false ).
+      functions->set_view_lotus( abap_false ).
+      functions->set_view_crystal( abap_false ).
+    ENDIF.
+    IF toolbar_options-is_print_disabled = abap_true.
+      functions->set_print( abap_false ).
+      functions->set_print_preview( abap_false ).
+    ENDIF.
+  ENDMETHOD.
+
+
+  METHOD layout_exists.
+    " An initial name would read all layouts of the program
+    IF name IS INITIAL.
+      RETURN.
+    ENDIF.
+    DATA(layouts) = cl_salv_layout_service=>get_layouts( s_key  = VALUE #( report = sy-cprog
+                                                                           handle = handle )
+                                                         layout = name ).
+    " LAYOUT can also take a pattern, so only a layout of exactly this name counts
+    result = xsdbool( line_exists( layouts[ layout = name ] ) ).
+  ENDMETHOD.
+
+
+  METHOD selected_columns.
+    IF is_displayed = abap_true.
+      result = salv->get_selections( )->get_selected_columns( ).
+    ENDIF.
+  ENDMETHOD.
+
+
+  METHOD toolbar.
+    toolbar_options = settings.
+    self = me.
   ENDMETHOD.
 ENDCLASS.

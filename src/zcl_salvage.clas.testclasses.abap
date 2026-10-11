@@ -108,8 +108,9 @@ CLASS ltc_salvage DEFINITION FINAL FOR TESTING RISK LEVEL HARMLESS DURATION SHOR
 
     CONSTANTS:
       BEGIN OF layout_values,
-        name   TYPE slis_vari  VALUE '/TEST',
-        handle TYPE slis_handl VALUE 'HEAD',
+        name    TYPE slis_vari  VALUE '/TEST',
+        handle  TYPE slis_handl VALUE 'HEAD',
+        missing TYPE slis_vari  VALUE '/NO_LAYOUT',
       END OF layout_values.
 
     CONSTANTS alpha_mask TYPE lvc_edtmsk VALUE '==ALPHA'.
@@ -165,6 +166,11 @@ CLASS ltc_salvage DEFINITION FINAL FOR TESTING RISK LEVEL HARMLESS DURATION SHOR
       IMPORTING list          TYPE REF TO zcl_salvage
       RETURNING VALUE(result) TYPE REF TO cl_salv_selopt
       RAISING   cx_salv_not_found.
+
+    METHODS is_offered
+      IMPORTING list          TYPE REF TO zcl_salvage
+                function      TYPE salv_de_function
+      RETURNING VALUE(result) TYPE abap_bool.
 
     METHODS when_sorted_table_then_raises FOR TESTING.
     METHODS when_string_lines_then_raises FOR TESTING.
@@ -233,6 +239,12 @@ CLASS ltc_salvage DEFINITION FINAL FOR TESTING RISK LEVEL HARMLESS DURATION SHOR
     METHODS when_single_then_single_mode  FOR TESTING.
     METHODS when_cells_then_cell_mode     FOR TESTING.
     METHODS when_between_then_high        FOR TESTING RAISING cx_static_check.
+    METHODS when_export_off_then_hidden   FOR TESTING.
+    METHODS when_print_off_then_hidden    FOR TESTING.
+    METHODS when_toolbar_then_others_kept FOR TESTING.
+    METHODS when_not_shown_then_no_columns FOR TESTING.
+    METHODS when_unknown_layout_then_false FOR TESTING.
+    METHODS when_no_layout_name_then_false FOR TESTING.
 
     METHODS when_slot_then_button_name    FOR TESTING.
     METHODS when_container_then_same_name FOR TESTING.
@@ -307,6 +319,11 @@ CLASS ltc_salvage IMPLEMENTATION.
   METHOD first_condition_of.
     DATA(conditions) = list->salv->get_filters( )->get_filter( columns-airline )->get( ).
     result = conditions[ 1 ].
+  ENDMETHOD.
+
+  METHOD is_offered.
+    " The function codes come from IF_SALV_C_FUNCTION, which is not classic API; test class only
+    result = list->salv->get_functions( )->is_visible( function ).
   ENDMETHOD.
 
   METHOD when_sorted_table_then_raises.
@@ -1344,5 +1361,87 @@ CLASS ltc_salvage IMPLEMENTATION.
     cl_abap_unit_assert=>assert_equals( act = CONV salv_de_function( dynamic_text-text )
                                         exp = buttons-first
                                         msg = `The menu must show the name of a button without text and quick info` ).
+  ENDMETHOD.
+
+  METHOD when_export_off_then_hidden.
+    " Given
+    DATA(list) = new_list( )->toolbar( VALUE #( is_export_disabled = abap_true ) ).
+    " When
+    list->prepare( ).
+    " Then
+    cl_abap_unit_assert=>assert_false( act = is_offered( list     = list
+                                                         function = if_salv_c_function=>export_spreadsheet )
+                                       msg = `The spreadsheet export must be hidden` ).
+    cl_abap_unit_assert=>assert_false( act = is_offered( list     = list
+                                                         function = if_salv_c_function=>export_localfile )
+                                       msg = `The local file export must be hidden` ).
+    cl_abap_unit_assert=>assert_false( act = is_offered( list     = list
+                                                         function = if_salv_c_function=>view_excel )
+                                       msg = `The view in Excel must be hidden` ).
+    cl_abap_unit_assert=>assert_true( act = is_offered( list     = list
+                                                        function = if_salv_c_function=>print_preview )
+                                      msg = `The print preview must stay when only the export is off` ).
+  ENDMETHOD.
+
+  METHOD when_print_off_then_hidden.
+    " Given
+    DATA(list) = new_list( )->toolbar( VALUE #( is_print_disabled = abap_true ) ).
+    " When
+    list->prepare( ).
+    " Then the print preview is hidden. Printing itself cannot be checked here: the function
+    " list of SALV does not know it, IS_VISIBLE raises CX_SALV_OBJECT_NOT_FOUND for it
+    cl_abap_unit_assert=>assert_false( act = is_offered( list     = list
+                                                         function = if_salv_c_function=>print_preview )
+                                       msg = `The print preview must be hidden` ).
+    cl_abap_unit_assert=>assert_true( act = is_offered( list     = list
+                                                        function = if_salv_c_function=>export_spreadsheet )
+                                      msg = `The export must stay when only printing is off` ).
+  ENDMETHOD.
+
+  METHOD when_toolbar_then_others_kept.
+    " Given a full screen list with own buttons and neither export nor printing
+    DATA(list) = two_button_list( )->toolbar( VALUE #( is_export_disabled = abap_true
+                                                       is_print_disabled  = abap_true ) ).
+    " When
+    list->prepare( ).
+    " Then
+    cl_abap_unit_assert=>assert_true( act = is_offered( list     = list
+                                                        function = if_salv_c_function=>sort_asc )
+                                      msg = `Sorting must stay` ).
+    cl_abap_unit_assert=>assert_true( act = is_offered( list     = list
+                                                        function = if_salv_c_function=>filter )
+                                      msg = `Filtering must stay` ).
+    cl_abap_unit_assert=>assert_bound( act = function_of( list = list
+                                                          name = slots-second )
+                                       msg = `The own buttons must stay` ).
+  ENDMETHOD.
+
+  METHOD when_not_shown_then_no_columns.
+    " Given a list whose SALV exists but was never shown
+    DATA(list) = new_list( )->selection( zcl_salvage=>selection_modes-cells ).
+    list->prepare( ).
+    " When
+    DATA(selected) = list->selected_columns( ).
+    " Then
+    cl_abap_unit_assert=>assert_initial( act = selected
+                                         msg = `Before DISPLAY no column can be selected` ).
+  ENDMETHOD.
+
+  METHOD when_unknown_layout_then_false.
+    " When
+    DATA(exists) = zcl_salvage=>layout_exists( layout_values-missing ).
+    " Then
+    cl_abap_unit_assert=>assert_false( act = exists
+                                       msg = `A layout that was never saved must not exist` ).
+  ENDMETHOD.
+
+  METHOD when_no_layout_name_then_false.
+    DATA no_name TYPE slis_vari.
+
+    " When
+    DATA(exists) = zcl_salvage=>layout_exists( no_name ).
+    " Then
+    cl_abap_unit_assert=>assert_false( act = exists
+                                       msg = `An initial name must not count as a saved layout` ).
   ENDMETHOD.
 ENDCLASS.

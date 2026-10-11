@@ -1,6 +1,6 @@
-" SALVage demo 06: cell selection. Select cells of the columns Capacity and Occupied, or whole
-" rows with the row selector, then the button Sum adds up Capacity and Occupied of the selection.
-" A whole column selected by its header is not counted: SELECTED_CELLS returns single cells only.
+" SALVage demo 06: cell selection. Select cells of the columns Capacity and Occupied, whole rows
+" with the row selector or whole columns with their header, then the button Sum adds up
+" Capacity and Occupied of the selection. A cell selected in several ways counts once.
 REPORT zsalvage_demo_06.
 
 DATA carrier_id TYPE s_carr_id.
@@ -34,6 +34,8 @@ CLASS lcl_demo DEFINITION FINAL CREATE PUBLIC.
         occupied TYPE i,
       END OF seat_sums.
 
+    TYPES counted_cells TYPE SORTED TABLE OF zcl_salvage=>cell_position WITH UNIQUE KEY row column.
+
     CONSTANTS sum_button TYPE salv_de_function VALUE 'SUM'.
 
     CONSTANTS:
@@ -54,9 +56,14 @@ CLASS lcl_demo DEFINITION FINAL CREATE PUBLIC.
     METHODS read_flights
       IMPORTING carriers TYPE carrier_range.
 
-    METHODS sum_of
+    METHODS cells_to_count
       IMPORTING cells         TYPE zcl_salvage=>cell_positions
                 rows          TYPE zcl_salvage=>row_indexes
+                columns       TYPE zcl_salvage=>column_names
+      RETURNING VALUE(result) TYPE counted_cells.
+
+    METHODS sum_of
+      IMPORTING cells         TYPE counted_cells
       RETURNING VALUE(result) TYPE seat_sums.
 ENDCLASS.
 
@@ -81,8 +88,9 @@ CLASS lcl_demo IMPLEMENTATION.
 
   METHOD zif_salvage_events~on_button_click.
     IF button = sum_button.
-      DATA(sums) = sum_of( cells = alv->selected_cells( )
-                           rows  = alv->selected_rows( ) ).
+      DATA(sums) = sum_of( cells_to_count( cells   = alv->selected_cells( )
+                                           rows    = alv->selected_rows( )
+                                           columns = alv->selected_columns( ) ) ).
       MESSAGE |{ TEXT-m01 } { sums-maximum }, { TEXT-m02 } { sums-occupied }| TYPE message_type-status.
     ENDIF.
   ENDMETHOD.
@@ -95,17 +103,28 @@ CLASS lcl_demo IMPLEMENTATION.
       INTO TABLE @flights.
   ENDMETHOD.
 
-  METHOD sum_of.
-    " Rows selected as a whole count with both columns
-    LOOP AT rows INTO DATA(row).
-      result-maximum  = result-maximum + flights[ row ]-seatsmax.
-      result-occupied = result-occupied + flights[ row ]-seatsocc.
+  METHOD cells_to_count.
+    " The unique key drops a cell that is selected again with its row or its column
+    LOOP AT cells INTO DATA(cell) WHERE column = column-seats_maximum
+                                     OR column = column-seats_occupied.
+      INSERT cell INTO TABLE result.
     ENDLOOP.
-    " A cell of such a row is counted with its row already; cells of other columns are ignored
+    " A row selected as a whole counts with both columns
+    LOOP AT rows INTO DATA(row).
+      INSERT VALUE #( row = row column = column-seats_maximum ) INTO TABLE result.
+      INSERT VALUE #( row = row column = column-seats_occupied ) INTO TABLE result.
+    ENDLOOP.
+    " A column selected as a whole counts with all rows of the table
+    LOOP AT columns INTO DATA(name) WHERE table_line = column-seats_maximum
+                                       OR table_line = column-seats_occupied.
+      DO lines( flights ) TIMES.
+        INSERT VALUE #( row = sy-index column = name ) INTO TABLE result.
+      ENDDO.
+    ENDLOOP.
+  ENDMETHOD.
+
+  METHOD sum_of.
     LOOP AT cells INTO DATA(cell).
-      IF line_exists( rows[ table_line = cell-row ] ).
-        CONTINUE.
-      ENDIF.
       CASE cell-column.
         WHEN column-seats_maximum.
           result-maximum = result-maximum + flights[ cell-row ]-seatsmax.

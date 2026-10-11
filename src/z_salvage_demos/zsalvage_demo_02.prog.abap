@@ -1,4 +1,5 @@
 " SALVage demo 02: columns, fixed key columns, sorting with subtotals, totals and saved layouts.
+" A layout name typed on the selection screen is checked before the list is shown.
 REPORT zsalvage_demo_02.
 
 DATA carrier_id TYPE s_carr_id.
@@ -105,6 +106,12 @@ ENDCLASS.
 
 AT SELECTION-SCREEN ON VALUE-REQUEST FOR layout.
   layout = zcl_salvage=>layout_f4( layout ).
+
+AT SELECTION-SCREEN ON layout.
+  " Without this check a name without a saved layout shows the list without a layout
+  IF layout IS NOT INITIAL AND zcl_salvage=>layout_exists( layout ) = abap_false.
+    MESSAGE e021(zsalvage) WITH layout.
+  ENDIF.
 
 START-OF-SELECTION.
   NEW lcl_demo( )->run( carriers = carriers[]

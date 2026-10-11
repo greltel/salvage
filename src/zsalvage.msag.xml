@@ -128,6 +128,12 @@
      <MSGNR>020</MSGNR>
      <TEXT>Column &amp;1 has a fixed unit or currency and a reference column; give one</TEXT>
     </T100>
+    <T100>
+     <SPRSL>E</SPRSL>
+     <ARBGB>ZSALVAGE</ARBGB>
+     <MSGNR>021</MSGNR>
+     <TEXT>Layout &amp;1 does not exist</TEXT>
+    </T100>
    </T100>
   </asx:values>
  </asx:abap>

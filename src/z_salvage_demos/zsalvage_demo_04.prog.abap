@@ -1,5 +1,6 @@
 " SALVage demo 04: a list in a docking container below the selection screen, with an own
 " button in the toolbar of the list. Execute (F8) shows the flights of the airline entered.
+" The flights can be printed but not exported.
 REPORT zsalvage_demo_04.
 
 PARAMETERS carrier TYPE s_carr_id.
@@ -131,7 +132,8 @@ CLASS lcl_cockpit IMPLEMENTATION.
                         )->title( |{ TEXT-t02 } { airline }|
                         )->column( name     = flight_column-price
                                    settings = VALUE #( currency_column = flight_column-currency )
-                        )->layout( VALUE #( handle = list_handle-flights ) ).
+                        )->layout( VALUE #( handle = list_handle-flights )
+                        )->toolbar( VALUE #( is_export_disabled = abap_true ) ).
   ENDMETHOD.
 
   METHOD show.
