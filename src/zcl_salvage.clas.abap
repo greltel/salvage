@@ -44,6 +44,14 @@ CLASS zcl_salvage DEFINITION
         unit_column     TYPE lvc_qfname,
         "! Column that holds the currency of this amount column; see unit_column
         currency_column TYPE lvc_cfname,
+        "! Unit of all rows of this quantity column, in internal format, for example KG; for a
+        "! column without unit column. Together with unit_column {@link zcl_salvage.METH:display}
+        "! raises an error.
+        unit            TYPE lvc_quan,
+        "! Currency of all rows of this amount column, for example EUR; for a column without
+        "! currency column. Together with currency_column {@link zcl_salvage.METH:display} raises
+        "! an error.
+        currency        TYPE lvc_curr,
         "! Output format: ==ALPHA for the conversion exit ALPHA, or a mask such as __:__
         edit_mask       TYPE lvc_edtmsk,
         "! Colour of the whole column, for example VALUE #( col = col_positive ) with the
@@ -167,7 +175,7 @@ CLASS zcl_salvage DEFINITION
 
     "! Version of SALVage in this system, as major.minor.patch of semantic versioning. It
     "! matches the release tag on GitHub without the leading v; quote it when you report an issue.
-    CONSTANTS version TYPE string VALUE `1.2.1`.
+    CONSTANTS version TYPE string VALUE `1.3.0`.
 
     "! Technical, not for use in reports: the texts of the own buttons of the fullscreen list
     "! that is shown right now. GUI status SALVAGE_FULLSCREEN of program ZSALVAGE_GUI reads them
@@ -297,6 +305,14 @@ CLASS zcl_salvage DEFINITION
     METHODS hide_empty_columns
       RETURNING VALUE(self) TYPE REF TO zcl_salvage.
 
+    "! Keeps the key columns in place when the user scrolls to the right. Key columns are those
+    "! with is_key in {@link zcl_salvage.METH:column} and the key fields of a line type from the
+    "! ABAP Dictionary; without key columns nothing is fixed.
+    "!
+    "! @parameter self | This list, for the next call of the chain
+    METHODS fixed_key_columns
+      RETURNING VALUE(self) TYPE REF TO zcl_salvage.
+
     "! Sets lines of text above the list. They show in full screen, in a dialog box and on the
     "! printout; a list in a container shows them on the printout only.
     "!
@@ -371,11 +387,12 @@ CLASS zcl_salvage DEFINITION
     "! a reference to this object as long as the list is visible. Create one list per container
     "! and display it once; for new data change the table and call
     "! {@link zcl_salvage.METH:refresh}. A container needs SAP GUI: in a background job
-    "! (sy-batch) leave out this call, so that the list is shown in full screen and written to
-    "! the spool; full screen offers at most 10 own buttons.
+    "! (sy-batch) the list is shown in full screen instead, which writes it to the spool, and the
+    "! own buttons are left out.
     "!
     "! @parameter container | Container the list fills; an initial reference makes
-    "!                        {@link zcl_salvage.METH:display} raise an error
+    "!                        {@link zcl_salvage.METH:display} raise an error, except in a
+    "!                        background job
     "! @parameter self      | This list, for the next call of the chain
     METHODS in_container
       IMPORTING container   TYPE REF TO cl_gui_container
@@ -389,12 +406,15 @@ CLASS zcl_salvage DEFINITION
     "!                              text column, a filter comparison or total kind that does not
     "!                              exist, a colour or light column of the wrong type, too many
     "!                              buttons, impossible dialog box coordinates, a container that
-    "!                              is missing; or the list was displayed already. The message of
+    "!                              is missing, a fixed unit or currency next to a unit or
+    "!                              currency column; or the list was displayed already. The message of
     "!                              class ZSALVAGE says which; nothing is shown
     METHODS display
       RAISING zcx_salvage_error.
 
-    "! Rows the user has selected, while the list is shown, for example in an event handler.
+    "! Rows the user has selected, while the list is shown, for example in an event handler or,
+    "! for a list in a container, at START-OF-SELECTION. Total and subtotal lines are not
+    "! included.
     "!
     "! @parameter result | Indexes of the selected rows in the table, in ascending order;
     "!                     empty before {@link zcl_salvage.METH:display}
@@ -403,7 +423,8 @@ CLASS zcl_salvage DEFINITION
 
     "! Cells the user has selected in selection mode cells, while the list is shown, for example
     "! in an event handler. Rows the user selects as a whole with the row selector on the left
-    "! are not included: read them with {@link zcl_salvage.METH:selected_rows}.
+    "! are not included: read them with {@link zcl_salvage.METH:selected_rows}. Cells of total
+    "! and subtotal lines are not included either.
     "!
     "! @parameter result | Row index in the table and column name of every selected cell;
     "!                     empty before {@link zcl_salvage.METH:display}
@@ -412,8 +433,9 @@ CLASS zcl_salvage DEFINITION
 
     "! Shows the current content of the table again, for example after an event handler
     "! changed, deleted or added rows. Sorting, filters and totals are applied again to the
-    "! new content; the sort order and the filters the user set, and the scroll position, stay.
-    "! Does nothing before {@link zcl_salvage.METH:display}.
+    "! new content; the sort order and the filters the user set, and the scroll position, stay,
+    "! also for a list in a container refreshed from the selection screen. Does nothing before
+    "! {@link zcl_salvage.METH:display}.
     METHODS refresh.
 
   PRIVATE SECTION.
@@ -512,6 +534,8 @@ CLASS zcl_salvage DEFINITION
     DATA is_striped          TYPE abap_bool.
     DATA is_optimized        TYPE abap_bool.
     DATA hides_empty_columns TYPE abap_bool.
+    DATA fixes_key_columns   TYPE abap_bool.
+    DATA in_background       TYPE abap_bool.
     DATA changed_columns     TYPE column_changes.
     DATA color_column        TYPE lvc_fname.
     DATA light_column        TYPE lvc_fname.
@@ -552,6 +576,17 @@ CLASS zcl_salvage DEFINITION
 
     METHODS check_special_columns
       RAISING zcx_salvage_error.
+
+    METHODS check_fixed_units
+      RAISING zcx_salvage_error.
+
+    METHODS has_unit_column
+      IMPORTING column_name   TYPE lvc_fname
+      RETURNING VALUE(result) TYPE abap_bool.
+
+    METHODS has_currency_column
+      IMPORTING column_name   TYPE lvc_fname
+      RETURNING VALUE(result) TYPE abap_bool.
 
     METHODS column_type
       IMPORTING name          TYPE lvc_fname
@@ -624,6 +659,10 @@ CLASS zcl_salvage DEFINITION
       RETURNING VALUE(result) TYPE salv_de_celltype.
 
     METHODS apply_column_format
+      IMPORTING column   TYPE REF TO cl_salv_column_table
+                settings TYPE column_settings.
+
+    METHODS apply_column_units
       IMPORTING column   TYPE REF TO cl_salv_column_table
                 settings TYPE column_settings.
 
@@ -729,6 +768,7 @@ CLASS ZCL_SALVAGE IMPLEMENTATION.
     result->table   = table.
     result->program = sy-cprog.
     result->output  = output_modes-fullscreen.
+    result->in_background = xsdbool( sy-batch IS NOT INITIAL ).
   ENDMETHOD.
 
 
@@ -874,6 +914,8 @@ CLASS ZCL_SALVAGE IMPLEMENTATION.
     " After a DISPLAY that raised, SALV exists but was never shown
     IF is_displayed = abap_true.
       result = salv->get_selections( )->get_selected_rows( ).
+      " Total and subtotal lines come as row 0 or below, which is no row of the table
+      DELETE result WHERE table_line <= 0.
       SORT result BY table_line.
     ENDIF.
   ENDMETHOD.
@@ -907,6 +949,7 @@ CLASS ZCL_SALVAGE IMPLEMENTATION.
     check_filters( ).
     check_totals( ).
     check_special_columns( ).
+    check_fixed_units( ).
     check_popup( ).
   ENDMETHOD.
 
@@ -979,6 +1022,9 @@ CLASS ZCL_SALVAGE IMPLEMENTATION.
     DATA(salv_columns) = salv->get_columns( ).
     IF is_optimized = abap_true.
       salv_columns->set_optimize( ).
+    ENDIF.
+    IF fixes_key_columns = abap_true.
+      salv_columns->set_key_fixation( ).
     ENDIF.
     apply_column_defaults( salv_columns ).
     apply_color_column( salv_columns ).
@@ -1055,6 +1101,8 @@ CLASS ZCL_SALVAGE IMPLEMENTATION.
                        settings = change-settings ).
     apply_column_format( column   = salv_column
                          settings = change-settings ).
+    apply_column_units( column   = salv_column
+                        settings = change-settings ).
     apply_column_references( column   = salv_column
                              settings = change-settings ).
     IF change-settings-position > 0.
@@ -1588,6 +1636,12 @@ CLASS ZCL_SALVAGE IMPLEMENTATION.
 
   METHOD prepare.
     " Everything DISPLAY does before the screen, so the unit tests can run it without a GUI
+    IF in_background = abap_true AND output = output_modes-container.
+      " A container needs SAP GUI. In a background job the list goes to the spool in full
+      " screen instead, where nobody can click an own button
+      output = output_modes-fullscreen.
+      CLEAR buttons.
+    ENDIF.
     check_configuration( ).
     salv = new_salv( ).
     apply_settings( ).
@@ -1597,9 +1651,59 @@ CLASS ZCL_SALVAGE IMPLEMENTATION.
   METHOD selected_cells.
     IF is_displayed = abap_true.
       DATA(cells) = salv->get_selections( )->get_selected_cells( ).
-      result = VALUE #( FOR cell IN cells
+      " Cells of total and subtotal lines come as row 0 or below, which is no row of the table
+      result = VALUE #( FOR cell IN cells WHERE ( row > 0 )
                         ( row    = cell-row
                           column = cell-columnname ) ).
     ENDIF.
+  ENDMETHOD.
+
+
+  METHOD apply_column_units.
+    IF settings-unit IS NOT INITIAL.
+      column->set_quantity( settings-unit ).
+    ENDIF.
+    IF settings-currency IS NOT INITIAL.
+      column->set_currency( settings-currency ).
+    ENDIF.
+  ENDMETHOD.
+
+
+  METHOD check_fixed_units.
+    " With a fixed value and a reference column for one column, SALV would show only one of them
+    LOOP AT changed_columns INTO DATA(change).
+      DATA(has_two_units) = xsdbool( change-settings-unit IS NOT INITIAL
+                                     AND has_unit_column( change-name ) = abap_true ).
+      DATA(has_two_currencies) = xsdbool( change-settings-currency IS NOT INITIAL
+                                          AND has_currency_column( change-name ) = abap_true ).
+      IF has_two_units = abap_true OR has_two_currencies = abap_true.
+        RAISE EXCEPTION TYPE zcx_salvage_error MESSAGE e020(zsalvage) WITH change-name.
+      ENDIF.
+    ENDLOOP.
+  ENDMETHOD.
+
+
+  METHOD fixed_key_columns.
+    fixes_key_columns = abap_true.
+    self = me.
+  ENDMETHOD.
+
+
+  METHOD has_currency_column.
+    LOOP AT changed_columns TRANSPORTING NO FIELDS
+         WHERE name = column_name AND settings-currency_column IS NOT INITIAL.
+      result = abap_true.
+      RETURN.
+    ENDLOOP.
+  ENDMETHOD.
+
+
+  METHOD has_unit_column.
+    " Settings of one column can come from several calls of COLUMN
+    LOOP AT changed_columns TRANSPORTING NO FIELDS
+         WHERE name = column_name AND settings-unit_column IS NOT INITIAL.
+      result = abap_true.
+      RETURN.
+    ENDLOOP.
   ENDMETHOD.
 ENDCLASS.

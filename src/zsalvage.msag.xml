@@ -122,6 +122,12 @@
      <MSGNR>019</MSGNR>
      <TEXT>Dialog box columns &amp;1-&amp;2, lines &amp;3-&amp;4: start from 1, end after start</TEXT>
     </T100>
+    <T100>
+     <SPRSL>E</SPRSL>
+     <ARBGB>ZSALVAGE</ARBGB>
+     <MSGNR>020</MSGNR>
+     <TEXT>Column &amp;1 has a fixed unit or currency and a reference column; give one</TEXT>
+    </T100>
    </T100>
   </asx:values>
  </asx:abap>

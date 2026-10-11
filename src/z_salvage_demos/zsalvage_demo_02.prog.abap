@@ -1,4 +1,4 @@
-" SALVage demo 02: columns, sorting with subtotals, totals and saved layouts.
+" SALVage demo 02: columns, fixed key columns, sorting with subtotals, totals and saved layouts.
 REPORT zsalvage_demo_02.
 
 DATA carrier_id TYPE s_carr_id.
@@ -81,6 +81,7 @@ CLASS lcl_demo IMPLEMENTATION.
                )->title( TEXT-t01
                )->striped(
                )->optimized(
+               )->fixed_key_columns(
                )->column( name     = column-airline
                           settings = VALUE #( is_key = abap_true )
                )->column( name     = column-connection

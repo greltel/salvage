@@ -78,6 +78,7 @@ CLASS ltc_salvage DEFINITION FINAL FOR TESTING RISK LEVEL HARMLESS DURATION SHOR
         no_container      TYPE symsgno VALUE '017',
         total_kind        TYPE symsgno VALUE '018',
         popup_size        TYPE symsgno VALUE '019',
+        fixed_and_column  TYPE symsgno VALUE '020',
       END OF messages.
 
     CONSTANTS:
@@ -107,6 +108,20 @@ CLASS ltc_salvage DEFINITION FINAL FOR TESTING RISK LEVEL HARMLESS DURATION SHOR
       END OF layout_values.
 
     CONSTANTS alpha_mask TYPE lvc_edtmsk VALUE '==ALPHA'.
+
+    CONSTANTS:
+      BEGIN OF fixed_values,
+        currency TYPE lvc_curr VALUE 'JPY',
+        unit     TYPE lvc_quan VALUE 'ST',
+      END OF fixed_values.
+
+    " A filter condition with an upper value
+    CONSTANTS:
+      BEGIN OF between,
+        option TYPE salv_de_selopt_option VALUE 'BT',
+        low    TYPE salv_de_selopt_low    VALUE 'AA',
+        high   TYPE salv_de_selopt_high   VALUE 'LH',
+      END OF between.
 
     " ZCL_SALVAGE=>VERSION is major.minor.patch, the release tag without the leading v
     CONSTANTS:
@@ -169,6 +184,9 @@ CLASS ltc_salvage DEFINITION FINAL FOR TESTING RISK LEVEL HARMLESS DURATION SHOR
     METHODS when_no_container_then_raises FOR TESTING.
     METHODS when_bad_popup_then_raises    FOR TESTING.
     METHODS when_popup_partial_then_raises FOR TESTING.
+    METHODS when_fixed_and_ref_then_raises FOR TESTING.
+    METHODS when_fixed_split_then_raises  FOR TESTING.
+    METHODS when_batch_then_full_screen   FOR TESTING.
 
     METHODS when_text_then_all_headers    FOR TESTING RAISING cx_static_check.
     METHODS when_hidden_then_invisible    FOR TESTING RAISING cx_static_check.
@@ -200,6 +218,14 @@ CLASS ltc_salvage DEFINITION FINAL FOR TESTING RISK LEVEL HARMLESS DURATION SHOR
     METHODS when_not_shown_then_no_rows   FOR TESTING.
     METHODS when_unknown_color_then_raises FOR TESTING.
     METHODS when_case_twice_then_raises   FOR TESTING.
+    METHODS when_fixed_currency_then_set  FOR TESTING RAISING cx_static_check.
+    METHODS when_fixed_unit_then_set      FOR TESTING RAISING cx_static_check.
+    METHODS when_fixed_keys_then_frozen   FOR TESTING.
+    METHODS when_save_off_then_default    FOR TESTING.
+    METHODS when_subtotals_then_set       FOR TESTING RAISING cx_static_check.
+    METHODS when_single_then_single_mode  FOR TESTING.
+    METHODS when_cells_then_cell_mode     FOR TESTING.
+    METHODS when_between_then_high        FOR TESTING RAISING cx_static_check.
 
     METHODS when_slot_then_button_name    FOR TESTING.
     METHODS when_container_then_same_name FOR TESTING.
@@ -515,6 +541,8 @@ CLASS ltc_salvage IMPLEMENTATION.
     " Given
     DATA no_container TYPE REF TO cl_gui_container.
     DATA(list) = new_list( )->in_container( no_container ).
+    " ABAP Unit may run in a background job, where a container list falls back to full screen
+    list->in_background = abap_false.
     " When
     DATA(message) = rejection_of( list ).
     " Then
@@ -1089,5 +1117,145 @@ CLASS ltc_salvage IMPLEMENTATION.
           act = xsdbool( number IS NOT INITIAL AND number CO version_format-digits )
           msg = |VERSION { version } must hold only numbers between the dots| ).
     ENDLOOP.
+  ENDMETHOD.
+
+  METHOD when_fixed_and_ref_then_raises.
+    " Given a fixed currency and a currency column for the same column
+    DATA(list) = new_list( )->column( name     = columns-price
+                                      settings = VALUE #( currency_column = columns-currency
+                                                          currency        = fixed_values-currency ) ).
+    " When
+    DATA(message) = rejection_of( list ).
+    " Then
+    cl_abap_unit_assert=>assert_equals( act = message
+                                        exp = messages-fixed_and_column
+                                        msg = `A fixed currency next to a currency column must be rejected` ).
+  ENDMETHOD.
+
+  METHOD when_fixed_split_then_raises.
+    " Given a unit column and a fixed unit in two calls for the same column
+    DATA(list) = new_list( )->column( name     = columns-occupied
+                                      settings = VALUE #( unit_column = columns-currency )
+                           )->column( name     = columns-occupied
+                                      settings = VALUE #( unit = fixed_values-unit ) ).
+    " When
+    DATA(message) = rejection_of( list ).
+    " Then
+    cl_abap_unit_assert=>assert_equals( act = message
+                                        exp = messages-fixed_and_column
+                                        msg = `A fixed unit next to a unit column of another call must be rejected` ).
+  ENDMETHOD.
+
+  METHOD when_batch_then_full_screen.
+    " Given a list for a container that runs in a background job, with more buttons than full
+    " screen offers and without a container, as on a selection screen that was never shown
+    DATA no_container TYPE REF TO cl_gui_container.
+    DATA(list) = new_list( )->in_container( no_container ).
+    DO 11 TIMES.
+      list->button( name     = |BUTTON_{ sy-index }|
+                    settings = VALUE #( text = |{ sy-index }| ) ).
+    ENDDO.
+    list->in_background = abap_true.
+    " When
+    DATA(message) = rejection_of( list ).
+    " Then
+    cl_abap_unit_assert=>assert_initial( act = message
+                                         msg = `A container list in a background job must not be rejected` ).
+    cl_abap_unit_assert=>assert_equals( act = list->output
+                                        exp = zcl_salvage=>output_modes-fullscreen
+                                        msg = `A container list in a background job must be shown in full screen` ).
+  ENDMETHOD.
+
+  METHOD when_fixed_currency_then_set.
+    " Given
+    DATA(list) = new_list( )->column( name     = columns-price
+                                      settings = VALUE #( currency = fixed_values-currency ) ).
+    " When
+    list->prepare( ).
+    " Then
+    cl_abap_unit_assert=>assert_equals( act = column_of( list = list
+                                                         name = columns-price )->get_currency( )
+                                        exp = fixed_values-currency
+                                        msg = `The fixed currency must be the currency of the column` ).
+  ENDMETHOD.
+
+  METHOD when_fixed_unit_then_set.
+    " Given
+    DATA(list) = new_list( )->column( name     = columns-occupied
+                                      settings = VALUE #( unit = fixed_values-unit ) ).
+    " When
+    list->prepare( ).
+    " Then
+    cl_abap_unit_assert=>assert_equals( act = column_of( list = list
+                                                         name = columns-occupied )->get_quantity( )
+                                        exp = fixed_values-unit
+                                        msg = `The fixed unit must be the unit of the column` ).
+  ENDMETHOD.
+
+  METHOD when_fixed_keys_then_frozen.
+    " Given
+    DATA(list) = new_list( )->fixed_key_columns( ).
+    " When
+    list->prepare( ).
+    " Then
+    cl_abap_unit_assert=>assert_true( act = list->salv->get_columns( )->has_key_fixation( )
+                                      msg = `The key columns must stay in place when scrolling` ).
+  ENDMETHOD.
+
+  METHOD when_save_off_then_default.
+    " Given a list whose layouts cannot be saved
+    DATA(list) = new_list( )->layout( VALUE #( is_save_disabled = abap_true ) ).
+    " When
+    list->prepare( ).
+    " Then
+    cl_abap_unit_assert=>assert_true( act = list->salv->get_layout( )->has_default( )
+                                      msg = `The default layout of the user must still be loaded` ).
+  ENDMETHOD.
+
+  METHOD when_subtotals_then_set.
+    " Given
+    DATA(list) = new_list( )->sort_by( name     = columns-airline
+                                       settings = VALUE #( has_subtotals = abap_true ) ).
+    " When
+    list->prepare( ).
+    " Then
+    cl_abap_unit_assert=>assert_true( act = list->salv->get_sorts( )->get_sort( columns-airline )->is_subtotalled( )
+                                      msg = `The sort criterion must have subtotals` ).
+  ENDMETHOD.
+
+  METHOD when_single_then_single_mode.
+    " Given
+    DATA(list) = new_list( )->selection( zcl_salvage=>selection_modes-single ).
+    " When
+    list->prepare( ).
+    " Then
+    cl_abap_unit_assert=>assert_equals( act = list->salv->get_selections( )->get_selection_mode( )
+                                        exp = if_salv_c_selection_mode=>single
+                                        msg = `Single selection must select one row at a time` ).
+  ENDMETHOD.
+
+  METHOD when_cells_then_cell_mode.
+    " Given
+    DATA(list) = new_list( )->selection( zcl_salvage=>selection_modes-cells ).
+    " When
+    list->prepare( ).
+    " Then
+    cl_abap_unit_assert=>assert_equals( act = list->salv->get_selections( )->get_selection_mode( )
+                                        exp = if_salv_c_selection_mode=>cell
+                                        msg = `Cell selection must select cells` ).
+  ENDMETHOD.
+
+  METHOD when_between_then_high.
+    " Given
+    DATA(list) = new_list( )->filter_by( name     = columns-airline
+                                         settings = VALUE #( option = between-option
+                                                             low    = between-low
+                                                             high   = between-high ) ).
+    " When
+    list->prepare( ).
+    " Then
+    cl_abap_unit_assert=>assert_equals( act = first_condition_of( list )->get_high( )
+                                        exp = between-high
+                                        msg = `The upper value must be handed to the filter` ).
   ENDMETHOD.
 ENDCLASS.
