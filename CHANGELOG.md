@@ -6,6 +6,33 @@ All notable changes to SALVage are documented here. The format follows
 
 ## [Unreleased]
 
+## [1.5.0] - 2026-10-11
+
+Minor release: a list without export or printing, the columns a user selected as a whole, and a
+check for a layout name typed on the selection screen. Existing calls do not change.
+
+### Added
+
+- `toolbar( )` with the new structure `toolbar_settings`: `is_export_disabled` hides the export
+  to a spreadsheet, a local file, a word processor, HTML, XML, mail, send and folder, and the
+  views in Excel, Lotus and Crystal Reports; `is_print_disabled` hides printing and the print
+  preview. Works in full screen, in a dialog box and in a container, through the `SET_EXPORT_*`,
+  `SET_VIEW_*`, `SET_PRINT` and `SET_PRINT_PREVIEW` methods of `CL_SALV_FUNCTIONS_LIST`. Users
+  can still copy cells, so this does not protect the data. Demo report `ZSALVAGE_DEMO_04` shows
+  its flights without export.
+- `selected_columns( )` with the new type `column_names`: the columns the user selected as a
+  whole by clicking their header, which `selected_cells( )` does not return
+  (`GET_SELECTED_COLUMNS` of `CL_SALV_SELECTIONS`). Demo report `ZSALVAGE_DEMO_06` adds them up
+  with the selected cells and rows, each cell once.
+- `layout_exists( )` (static): whether a layout of a name is saved for the calling program, to
+  check a layout parameter of a selection screen (`GET_LAYOUTS` of `CL_SALV_LAYOUT_SERVICE`).
+  The new message `ZSALVAGE 021` "Layout &1 does not exist" is for the report to send. Demo
+  report `ZSALVAGE_DEMO_02` checks its layout parameter with it.
+- 6 unit tests (85 in all): export and print preview hidden, the other functions and the own buttons
+  kept, no selected columns before `display( )`, `layout_exists( )` for a name never saved and
+  for an initial name. The tests take function codes from `IF_SALV_C_FUNCTION`, which is not
+  classic API; this concerns the test class only.
+
 ## [1.4.0] - 2026-10-11
 
 Bug-fix release: cell types from separate `column( )` calls, own buttons with an icon only in the
