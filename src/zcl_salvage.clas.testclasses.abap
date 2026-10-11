@@ -15,6 +15,11 @@ ENDCLASS.
 
 
 CLASS ltd_handler IMPLEMENTATION.
+  METHOD zif_salvage_events~on_double_click.
+    me->row    = row.
+    me->column = column.
+  ENDMETHOD.
+
   METHOD zif_salvage_events~on_link_click.
     me->row    = row.
     me->column = column.
@@ -204,6 +209,8 @@ CLASS ltc_salvage DEFINITION FINAL FOR TESTING RISK LEVEL HARMLESS DURATION SHOR
     METHODS when_hotspot_then_cell_type   FOR TESTING RAISING cx_static_check.
     METHODS when_checkbox_then_cell_type  FOR TESTING RAISING cx_static_check.
     METHODS when_check_hotspot_then_type  FOR TESTING RAISING cx_static_check.
+    METHODS when_hotspot_later_then_both  FOR TESTING RAISING cx_static_check.
+    METHODS when_checkbox_later_then_both FOR TESTING RAISING cx_static_check.
     METHODS when_column_format_then_set   FOR TESTING RAISING cx_static_check.
     METHODS when_position_then_moved      FOR TESTING RAISING cx_static_check.
     METHODS when_technical_then_technical FOR TESTING RAISING cx_static_check.
@@ -231,8 +238,11 @@ CLASS ltc_salvage DEFINITION FINAL FOR TESTING RISK LEVEL HARMLESS DURATION SHOR
     METHODS when_container_then_same_name FOR TESTING.
     METHODS when_unused_slot_then_no_text FOR TESTING.
     METHODS when_slot_text_then_dyntxt    FOR TESTING.
+    METHODS when_icon_only_then_menu_tip  FOR TESTING.
+    METHODS when_no_text_then_menu_name   FOR TESTING.
     METHODS when_buttons_then_slots_known FOR TESTING.
     METHODS when_link_click_then_handler  FOR TESTING.
+    METHODS when_double_click_then_handler FOR TESTING.
     METHODS when_slot_click_then_button   FOR TESTING.
     METHODS when_no_handler_then_no_dump  FOR TESTING.
     METHODS when_total_click_then_ignored FOR TESTING.
@@ -1257,5 +1267,82 @@ CLASS ltc_salvage IMPLEMENTATION.
     cl_abap_unit_assert=>assert_equals( act = first_condition_of( list )->get_high( )
                                         exp = between-high
                                         msg = `The upper value must be handed to the filter` ).
+  ENDMETHOD.
+
+  METHOD when_hotspot_later_then_both.
+    " Given a checkbox column that a later call makes a hotspot too
+    DATA(list) = new_list( )->column( name     = columns-light
+                                      settings = VALUE #( is_checkbox = abap_true )
+                           )->column( name     = columns-light
+                                      settings = VALUE #( is_hotspot = abap_true ) ).
+    " When
+    list->prepare( ).
+    " Then
+    cl_abap_unit_assert=>assert_equals( act = column_of( list = list
+                                                         name = columns-light )->get_cell_type( )
+                                        exp = if_salv_c_cell_type=>checkbox_hotspot
+                                        msg = `A hotspot from a later call must keep the checkbox` ).
+  ENDMETHOD.
+
+  METHOD when_checkbox_later_then_both.
+    " Given a hotspot column that a later call makes a checkbox too
+    DATA(list) = new_list( )->column( name     = columns-light
+                                      settings = VALUE #( is_hotspot = abap_true )
+                           )->column( name     = columns-light
+                                      settings = VALUE #( is_checkbox = abap_true ) ).
+    " When
+    list->prepare( ).
+    " Then
+    cl_abap_unit_assert=>assert_equals( act = column_of( list = list
+                                                         name = columns-light )->get_cell_type( )
+                                        exp = if_salv_c_cell_type=>checkbox_hotspot
+                                        msg = `A checkbox from a later call must keep the hotspot` ).
+  ENDMETHOD.
+
+  METHOD when_double_click_then_handler.
+    " Given
+    DATA(handler) = NEW ltd_handler( ).
+    DATA(list) = new_list( )->handled_by( handler ).
+    " When SALV reports a double-click
+    list->on_salv_double_click( row    = 1
+                                column = columns-occupied ).
+    " Then
+    cl_abap_unit_assert=>assert_equals( act = handler->row
+                                        exp = 1
+                                        msg = `The handler must get the row` ).
+    cl_abap_unit_assert=>assert_equals( act = handler->column
+                                        exp = columns-occupied
+                                        msg = `The handler must get the column` ).
+  ENDMETHOD.
+
+  METHOD when_icon_only_then_menu_tip.
+    DATA dynamic_text TYPE smp_dyntxt.
+
+    " Given a button with an icon and a quick info, but without text
+    DATA(list) = new_list( )->button( name     = buttons-first
+                                      settings = VALUE #( icon    = icon_okay
+                                                          tooltip = `Quick info only` ) ).
+    " When
+    dynamic_text = list->slot_text( 1 ).
+    " Then
+    cl_abap_unit_assert=>assert_equals( act = CONV string( dynamic_text-text )
+                                        exp = `Quick info only`
+                                        msg = `The menu must show the quick info of a button without text` ).
+    cl_abap_unit_assert=>assert_initial( act = dynamic_text-icon_text
+                                         msg = `The toolbar must show the icon without text` ).
+  ENDMETHOD.
+
+  METHOD when_no_text_then_menu_name.
+    DATA dynamic_text TYPE smp_dyntxt.
+
+    " Given a button with an icon only
+    DATA(list) = new_list( )->button( name     = buttons-first
+                                      settings = VALUE #( icon = icon_okay ) ).
+    " When
+    dynamic_text = list->slot_text( 1 ).
+    " Then
+    cl_abap_unit_assert=>assert_equals( act = CONV salv_de_function( dynamic_text-text )
+                                        exp = buttons-first
+                                        msg = `The menu must show the name of a button without text and quick info` ).
   ENDMETHOD.
 ENDCLASS.

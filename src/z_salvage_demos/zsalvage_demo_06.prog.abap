@@ -1,5 +1,6 @@
 " SALVage demo 06: cell selection. Select cells of the columns Capacity and Occupied, or whole
 " rows with the row selector, then the button Sum adds up Capacity and Occupied of the selection.
+" A whole column selected by its header is not counted: SELECTED_CELLS returns single cells only.
 REPORT zsalvage_demo_06.
 
 DATA carrier_id TYPE s_carr_id.

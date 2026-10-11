@@ -46,11 +46,13 @@ CLASS zcl_salvage DEFINITION
         currency_column TYPE lvc_cfname,
         "! Unit of all rows of this quantity column, in internal format, for example KG; for a
         "! column without unit column. Together with unit_column {@link zcl_salvage.METH:display}
-        "! raises an error.
+        "! raises an error. It also replaces a unit column that the ABAP Dictionary defines for
+        "! the column; that column keeps showing its own values.
         unit            TYPE lvc_quan,
         "! Currency of all rows of this amount column, for example EUR; for a column without
         "! currency column. Together with currency_column {@link zcl_salvage.METH:display} raises
-        "! an error.
+        "! an error. It also replaces a currency column that the ABAP Dictionary defines for the
+        "! column; that column keeps showing its own values.
         currency        TYPE lvc_curr,
         "! Output format: ==ALPHA for the conversion exit ALPHA, or a mask such as __:__
         edit_mask       TYPE lvc_edtmsk,
@@ -70,7 +72,8 @@ CLASS zcl_salvage DEFINITION
     TYPES:
       "! Layout (variant) handling, for {@link zcl_salvage.METH:layout}.
       BEGIN OF layout_settings,
-        "! Layout shown at start; initial: the default layout of the user, if there is one
+        "! Layout shown at start; initial: the default layout of the user, if there is one. A name
+        "! without a saved layout shows the list as without a name, with no message
         name             TYPE slis_vari,
         "! Tells apart several lists of the same program, for example HEAD and ITEM. Give every
         "! list of a program its own handle: lists with the same handle share their layouts, so a
@@ -93,11 +96,13 @@ CLASS zcl_salvage DEFINITION
     TYPES:
       "! An own toolbar button, for {@link zcl_salvage.METH:button}.
       BEGIN OF button_settings,
-        "! Text on the button
+        "! Text on the button; a fullscreen list shows its first 40 characters. In the menu Extras
+        "! of a fullscreen list a button without text shows its quick info, or else its name
         text    TYPE string,
         "! Icon on the button, for example ICON_RELEASE of type pool ICON
         icon    TYPE icon_d,
-        "! Quick info shown when the mouse rests on the button
+        "! Quick info shown when the mouse rests on the button; a fullscreen list shows its first
+        "! 60 characters
         tooltip TYPE string,
       END OF button_settings.
 
@@ -175,7 +180,7 @@ CLASS zcl_salvage DEFINITION
 
     "! Version of SALVage in this system, as major.minor.patch of semantic versioning. It
     "! matches the release tag on GitHub without the leading v; quote it when you report an issue.
-    CONSTANTS version TYPE string VALUE `1.3.0`.
+    CONSTANTS version TYPE string VALUE `1.4.0`.
 
     "! Technical, not for use in reports: the texts of the own buttons of the fullscreen list
     "! that is shown right now. GUI status SALVAGE_FULLSCREEN of program ZSALVAGE_GUI reads them
@@ -372,7 +377,8 @@ CLASS zcl_salvage DEFINITION
       IMPORTING handler     TYPE REF TO zif_salvage_events
       RETURNING VALUE(self) TYPE REF TO zcl_salvage.
 
-    "! Shows the list in a dialog box instead of the full screen.
+    "! Shows the list in a dialog box instead of the full screen. Of this method and
+    "! {@link zcl_salvage.METH:in_container}, the one called last decides how the list is shown.
     "!
     "! @parameter settings | Size of the dialog box; initial: a box of about 155 columns and 22
     "!                        lines. If given, give all four components; other values make
@@ -383,9 +389,10 @@ CLASS zcl_salvage DEFINITION
       RETURNING VALUE(self) TYPE REF TO zcl_salvage.
 
     "! Shows the list in a GUI container of your screen, for example a docking container,
-    "! instead of the full screen. {@link zcl_salvage.METH:display} then returns at once, so keep
-    "! a reference to this object as long as the list is visible. Create one list per container
-    "! and display it once; for new data change the table and call
+    "! instead of the full screen. Of this method and {@link zcl_salvage.METH:popup}, the one
+    "! called last decides how the list is shown. {@link zcl_salvage.METH:display} then returns
+    "! at once, so keep a reference to this object as long as the list is visible. Create one
+    "! list per container and display it once; for new data change the table and call
     "! {@link zcl_salvage.METH:refresh}. A container needs SAP GUI: in a background job
     "! (sy-batch) the list is shown in full screen instead, which writes it to the spool, and the
     "! own buttons are left out.
@@ -424,7 +431,8 @@ CLASS zcl_salvage DEFINITION
     "! Cells the user has selected in selection mode cells, while the list is shown, for example
     "! in an event handler. Rows the user selects as a whole with the row selector on the left
     "! are not included: read them with {@link zcl_salvage.METH:selected_rows}. Cells of total
-    "! and subtotal lines are not included either.
+    "! and subtotal lines are not included either, nor whole columns the user selects by clicking
+    "! the column header.
     "!
     "! @parameter result | Row index in the table and column name of every selected cell;
     "!                     empty before {@link zcl_salvage.METH:display}
@@ -655,7 +663,8 @@ CLASS zcl_salvage DEFINITION
                 settings TYPE column_settings.
 
     METHODS cell_type_of
-      IMPORTING settings      TYPE column_settings
+      IMPORTING column        TYPE REF TO cl_salv_column_table
+                settings      TYPE column_settings
       RETURNING VALUE(result) TYPE salv_de_celltype.
 
     METHODS apply_column_format
@@ -1156,21 +1165,27 @@ CLASS ZCL_SALVAGE IMPLEMENTATION.
     IF settings-is_icon = abap_true.
       column->set_icon( ).
     ENDIF.
-    DATA(cell_type) = cell_type_of( settings ).
-    IF cell_type <> if_salv_c_cell_type=>text.
-      column->set_cell_type( cell_type ).
+    IF settings-is_checkbox = abap_true OR settings-is_hotspot = abap_true.
+      column->set_cell_type( cell_type_of( column   = column
+                                           settings = settings ) ).
     ENDIF.
   ENDMETHOD.
 
 
   METHOD cell_type_of.
-    result = COND #( WHEN settings-is_checkbox = abap_true AND settings-is_hotspot = abap_true
+    " Checkbox and hotspot from separate calls of COLUMN add up, as all other settings do
+    DATA(current) = column->get_cell_type( ).
+    DATA(is_checkbox) = xsdbool( settings-is_checkbox = abap_true
+                                 OR current = if_salv_c_cell_type=>checkbox
+                                 OR current = if_salv_c_cell_type=>checkbox_hotspot ).
+    DATA(is_hotspot) = xsdbool( settings-is_hotspot = abap_true
+                                OR current = if_salv_c_cell_type=>hotspot
+                                OR current = if_salv_c_cell_type=>checkbox_hotspot ).
+    result = COND #( WHEN is_checkbox = abap_true AND is_hotspot = abap_true
                      THEN if_salv_c_cell_type=>checkbox_hotspot
-                     WHEN settings-is_checkbox = abap_true
+                     WHEN is_checkbox = abap_true
                      THEN if_salv_c_cell_type=>checkbox
-                     WHEN settings-is_hotspot = abap_true
-                     THEN if_salv_c_cell_type=>hotspot
-                     ELSE if_salv_c_cell_type=>text ).
+                     ELSE if_salv_c_cell_type=>hotspot ).
   ENDMETHOD.
 
 
@@ -1457,7 +1472,12 @@ CLASS ZCL_SALVAGE IMPLEMENTATION.
       RETURN.
     ENDIF.
     DATA(settings) = buttons[ slot ]-settings.
-    DATA(dynamic_text) = VALUE smp_dyntxt( text      = settings-text
+    " The menu Extras shows TEXT and leaves out a function without it; the toolbar shows the icon
+    " with ICON_TEXT, so a button with an icon only stays one
+    DATA(menu_text) = COND string( WHEN settings-text IS NOT INITIAL THEN settings-text
+                                   WHEN settings-tooltip IS NOT INITIAL THEN settings-tooltip
+                                   ELSE buttons[ slot ]-name ).
+    DATA(dynamic_text) = VALUE smp_dyntxt( text      = menu_text
                                            icon_id   = settings-icon
                                            icon_text = settings-text
                                            quickinfo = settings-tooltip ).
