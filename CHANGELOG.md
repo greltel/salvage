@@ -6,6 +6,61 @@ All notable changes to SALVage are documented here. The format follows
 
 ## [Unreleased]
 
+### Fixed
+
+- `column( )`: checkbox and hotspot given in two calls for the same column add up to a clickable
+  checkbox. Before, the later call replaced the cell type of the earlier one, so the column lost
+  its hotspot (no `on_link_click`) or its checkbox, although the settings of all calls of
+  `column( )` add up.
+- Unit test `when_total_click_then_ignored` could not fail for a double-click: the test handler
+  did not implement `on_double_click`. It does now, and the new test
+  `when_double_click_then_handler` checks that a double-click reaches the handler.
+
+### Changed
+
+- Documentation: of `popup( )` and `in_container( )`, the one called last decides how the list is
+  shown; in full screen the toolbar shows the first 40 characters of a button text and the first
+  60 of its quick info; a list for a container in a background job, checked on SAP S/4HANA 2023
+  FPS03, goes to the spool in full screen.
+- 3 unit tests (77 in all): checkbox and hotspot from separate calls in both orders, and a
+  double-click passed on to the handler.
+
+## [1.3.0] - 2026-10-11
+
+Minor release: fixed units and currencies, fixed key columns, container lists in background
+jobs, and no total lines in the selected cells. Existing calls do not change.
+
+### Added
+
+- `column_settings`: components `unit` and `currency` for a column whose rows all have the same
+  unit or currency, through `SET_QUANTITY` and `SET_CURRENCY` of `CL_SALV_COLUMN`. A fixed value
+  next to a `unit_column` or `currency_column` of the same column, also from another `column( )`
+  call, raises the new message `ZSALVAGE 020`.
+- `fixed_key_columns( )`: the key columns stay in place when users scroll to the right
+  (`SET_KEY_FIXATION` of `CL_SALV_COLUMNS_LIST`). Demo report `ZSALVAGE_DEMO_02` uses it.
+- 11 unit tests (74 in all): fixed unit and currency and their conflicts, fixed key columns, a
+  container list in a background job, the default layout when saving is off, subtotals of a
+  sort criterion, selection modes `single` and `cells`, the upper value of a filter.
+
+### Fixed
+
+- `selected_cells( )` returned cells of total and subtotal lines, with row 0 for the total and a
+  negative row for a subtotal; a handler reading `table[ cell-row ]` dumped with
+  `CX_SY_ITAB_LINE_NOT_FOUND`. Such cells are left out now. `selected_rows( )` leaves out rows
+  below 1 too; SALV returned none in the tests on SAP S/4HANA 2023 FPS03.
+
+### Changed
+
+- A list for a container in a background job (`sy-batch`) is shown in full screen and written to
+  the spool, without its own buttons. Before, `display( )` raised message 017 when the container
+  was initial, as it is for a container created on the selection screen, and message 006 for
+  more than 10 own buttons.
+- Documentation: `selected_rows( )` and `selected_cells( )` also work outside the events, for
+  example at `START-OF-SELECTION` for a list on the selection screen, and `refresh( )` from the
+  selection screen keeps the user's sort order and filters (checked on SAP S/4HANA 2023 FPS03);
+  amounts without currency in Troubleshooting; ABAP Doc links and releases 7.50 and 7.51 in
+  Requirements.
+
 ## [1.2.1] - 2026-10-11
 
 Patch release: a handler set after `display( )` is registered, and the GUI status loses three
