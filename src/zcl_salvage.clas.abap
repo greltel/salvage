@@ -167,7 +167,7 @@ CLASS zcl_salvage DEFINITION
 
     "! Version of SALVage in this system, as major.minor.patch of semantic versioning. It
     "! matches the release tag on GitHub without the leading v; quote it when you report an issue.
-    CONSTANTS version TYPE string VALUE `1.2.0`.
+    CONSTANTS version TYPE string VALUE `1.2.1`.
 
     "! Technical, not for use in reports: the texts of the own buttons of the fullscreen list
     "! that is shown right now. GUI status SALVAGE_FULLSCREEN of program ZSALVAGE_GUI reads them
@@ -288,9 +288,10 @@ CLASS zcl_salvage DEFINITION
       IMPORTING name        TYPE csequence
       RETURNING VALUE(self) TYPE REF TO zcl_salvage.
 
-    "! Hides every column that is empty in all rows. Users can show it again through the
-    "! layout. Reads the rows once per column when the list is shown; an empty table hides
-    "! nothing.
+    "! Hides every column that is initial in all rows; a number column whose rows are all zero
+    "! counts as empty too. Users can show it again through the layout. Decided once, when the
+    "! list is shown: {@link zcl_salvage.METH:refresh} neither hides nor shows columns. Reads
+    "! the rows once per column; an empty table hides nothing.
     "!
     "! @parameter self | This list, for the next call of the chain
     METHODS hide_empty_columns
@@ -345,7 +346,9 @@ CLASS zcl_salvage DEFINITION
                 settings    TYPE button_settings
       RETURNING VALUE(self) TYPE REF TO zcl_salvage.
 
-    "! Sets the object that reacts to clicks and to own buttons.
+    "! Sets the object that reacts to clicks and to own buttons. Can also be called after
+    "! {@link zcl_salvage.METH:display}, for example for a list in a container, which is shown
+    "! already when display returns.
     "!
     "! @parameter handler | Implements the events it needs, the others stay empty
     "! @parameter self    | This list, for the next call of the chain
@@ -367,8 +370,9 @@ CLASS zcl_salvage DEFINITION
     "! instead of the full screen. {@link zcl_salvage.METH:display} then returns at once, so keep
     "! a reference to this object as long as the list is visible. Create one list per container
     "! and display it once; for new data change the table and call
-    "! {@link zcl_salvage.METH:refresh}. A container needs SAP GUI: a report that may run in a
-    "! background job shows the list in full screen there, which writes it to the spool.
+    "! {@link zcl_salvage.METH:refresh}. A container needs SAP GUI: in a background job
+    "! (sy-batch) leave out this call, so that the list is shown in full screen and written to
+    "! the spool; full screen offers at most 10 own buttons.
     "!
     "! @parameter container | Container the list fills; an initial reference makes
     "!                        {@link zcl_salvage.METH:display} raise an error
@@ -836,6 +840,10 @@ CLASS ZCL_SALVAGE IMPLEMENTATION.
 
   METHOD handled_by.
     me->handler = handler.
+    " A list in a container is shown already; registering the same handler twice has no effect
+    IF is_displayed = abap_true.
+      register_handler( ).
+    ENDIF.
     self = me.
   ENDMETHOD.
 

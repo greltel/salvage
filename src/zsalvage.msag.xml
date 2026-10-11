@@ -72,7 +72,7 @@
      <SPRSL>E</SPRSL>
      <ARBGB>ZSALVAGE</ARBGB>
      <MSGNR>011</MSGNR>
-     <TEXT>CREATE needs a reference to a standard table with structured lines</TEXT>
+     <TEXT>CREATE needs a valid reference to a standard table with structured lines</TEXT>
     </T100>
     <T100>
      <SPRSL>E</SPRSL>
