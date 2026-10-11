@@ -6,6 +6,11 @@ All notable changes to SALVage are documented here. The format follows
 
 ## [Unreleased]
 
+## [1.4.0] - 2026-10-11
+
+Bug-fix release: cell types from separate `column( )` calls, own buttons with an icon only in the
+menu, and documentation checked against SAP S/4HANA 2023 FPS03. Existing calls do not change.
+
 ### Fixed
 
 - `column( )`: checkbox and hotspot given in two calls for the same column add up to a clickable
@@ -15,15 +20,22 @@ All notable changes to SALVage are documented here. The format follows
 - Unit test `when_total_click_then_ignored` could not fail for a double-click: the test handler
   did not implement `on_double_click`. It does now, and the new test
   `when_double_click_then_handler` checks that a double-click reaches the handler.
+- Fullscreen list: an own button with an icon but no text was missing from the menu Extras. It
+  is listed there with its quick info, or with its name when it has no quick info either; the
+  toolbar still shows the icon alone.
 
 ### Changed
 
 - Documentation: of `popup( )` and `in_container( )`, the one called last decides how the list is
   shown; in full screen the toolbar shows the first 40 characters of a button text and the first
   60 of its quick info; a list for a container in a background job, checked on SAP S/4HANA 2023
-  FPS03, goes to the spool in full screen.
-- 3 unit tests (77 in all): checkbox and hotspot from separate calls in both orders, and a
-  double-click passed on to the handler.
+  FPS03, goes to the spool in full screen. Also checked on that release and now documented: a
+  fixed `unit` or `currency` replaces the unit or currency column of the ABAP Dictionary; a
+  layout name without a saved layout shows the list without message; whole columns selected by
+  their header are returned neither by `selected_cells( )` nor by `selected_rows( )` (also noted
+  in demo report `ZSALVAGE_DEMO_06`).
+- 5 unit tests (79 in all): checkbox and hotspot from separate calls in both orders, a
+  double-click passed on to the handler, and the menu text of a button without text.
 
 ## [1.3.0] - 2026-10-11
 
