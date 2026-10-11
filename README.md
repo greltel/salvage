@@ -86,8 +86,8 @@ SALVage keeps what SALV does well and removes the ceremony:
 
 | Area | What you get |
 |---|---|
-| Display | Full screen, dialog box (popup) or any GUI container (docking, custom, splitter...) |
-| Columns | Header text and quick info, width, position, hidden, technical, key, hotspot, checkbox, icon, colour, edit mask (conversion exit), hidden zeros, unit and currency column; the component name as header where no data element gives one |
+| Display | Full screen, dialog box (popup) or any GUI container (docking, custom, splitter...); a container list goes to the spool in a background job |
+| Columns | Header text and quick info, width, position, hidden, technical, key, hotspot, checkbox, icon, colour, edit mask (conversion exit), hidden zeros, unit and currency column or a fixed unit and currency, key columns fixed when scrolling; the component name as header where no data element gives one |
 | Rows | Sorting with subtotals, totals (sum, average, minimum, maximum), filters, row and cell colours, traffic lights, striped pattern, optimized column widths, empty columns hidden |
 | Texts | Title, lines of text above and below the list |
 | Layouts | Saving on by default, per program and handle, initial layout, F4 help for a selection-screen parameter |
@@ -105,6 +105,10 @@ SALVage keeps what SALV does well and removes the ceremony:
   jobs write the list to the spool.
 - [abapGit](https://abapgit.org) to install.
 
+The ABAP Doc links to other declarations with `{@link ...}`, which exists from ABAP 7.52. On
+7.50 and 7.51 the syntax check may report warnings for these comments; the objects activate and
+run all the same. This has not been checked on such a release yet.
+
 ### Tested on
 
 SAP S/4HANA 2023 FPS03 (ABAP 7.58), with the demo reports. abaplint checks every change
@@ -115,7 +119,7 @@ report from such a system is welcome as an issue.
 |---|---|
 | SAP GUI for Windows | All demos: full screen with own buttons, dialog box, docking container; the unit tests and ATC |
 | SAP GUI for HTML (WebGUI) | Own buttons and hotspots in full screen, docking container, dialog box opened from a button, traffic lights, colours, text above and below the list |
-| Background job | List in the spool with title, text above and below, traffic lights, colours, and totals per currency; a dialog box (`popup( )`) goes to the spool like a full screen list; the user's default layout applies |
+| Background job | List in the spool with title, text above and below, traffic lights, colours, and totals per currency; a dialog box (`popup( )`) and a list for a container go to the spool like a full screen list; the user's default layout applies |
 | Spreadsheet export (XLSX) | Own column headers, text above and below, totals per currency, amounts with the decimals of their currency, hidden columns left out |
 | Large table | 300,000 rows of 11 columns shown in full screen in about 5 seconds; `optimized( )` and `hide_empty_columns( )` add no noticeable time |
 
@@ -150,7 +154,7 @@ a request of their own that does not go to production.
 The demos read the flight data model (`SCARR`, `SFLIGHT`). If its tables are empty, fill them
 with report `SAPBC_DATA_GENERATOR`.
 
-The constant `ZCL_SALVAGE=>VERSION` tells which version a system has, for example `1.2.0`: the
+The constant `ZCL_SALVAGE=>VERSION` tells which version a system has, for example `1.3.0`: the
 [release](https://github.com/greltel/salvage/releases) tag without the `v`. For a production
 system, install a release rather than the latest commit of `main`: switch the abapGit repository
 to the release tag before the pull.
@@ -211,12 +215,23 @@ More column settings:
                                is_zero_hidden  = abap_true )
 )->column( name     = 'QUANTITY'
            settings = VALUE #( unit_column = 'UNIT' )                " quantity with its unit
+)->column( name     = 'NET_EUR'
+           settings = VALUE #( currency = 'EUR' )                    " one currency for all rows
 )->column( name     = 'MATNR'
            settings = VALUE #( edit_mask = '==MATN1' )               " conversion exit
 ```
 
 `unit_column` and `currency_column` are needed when the line type does not tell SALV which
-column holds the unit or currency, typically for a structure declared in the report.
+column holds the unit or currency, typically for a structure declared in the report. When all
+rows have the same unit or currency, give it with `unit` or `currency` instead. A column takes
+one of the two: a fixed value next to a unit or currency column raises message 020.
+
+Without either, SALV shows an amount with two decimals and totals all rows together: amounts
+in currencies with other decimals, such as JPY, show wrong, and the total adds up different
+currencies.
+
+`fixed_key_columns( )` keeps the key columns in place when users scroll to the right: the
+columns with `is_key` and, for a line type from the ABAP Dictionary, its key fields.
 
 ### Colours and traffic lights
 
@@ -373,8 +388,11 @@ Own buttons per display mode:
 | Display mode | Own buttons |
 |---|---|
 | Full screen (default) | Up to 10, through the GUI status of `ZSALVAGE_GUI` |
-| Container (`in_container( )`) | Any number, in the toolbar of the list |
+| Container (`in_container( )`) | Any number, in the toolbar of the list; none in a background job |
 | Dialog box (`popup( )`) | None |
+
+In full screen the toolbar shows the first 40 characters of a button `text` and the first 60 of
+its `tooltip`; a list in a container shows them whole.
 
 ### Display modes
 
@@ -386,16 +404,31 @@ Own buttons per display mode:
 )->in_container( docking_container )->display( ).  " returns at once
 ```
 
+`popup( )` and `in_container( )` both choose how the list is shown; when a chain calls both, the
+one called last decides. So a report can ask for a dialog box and switch to a container where it
+has one:
+
+```abap
+DATA(list) = zcl_salvage=>create( REF #( flights ) )->popup( ).
+IF dock IS BOUND.
+  list->in_container( dock ).
+ENDIF.
+list->display( ).
+```
+
 A list in a container stays on the screen after `display( )` returned. Keep the reference to the
 `ZCL_SALVAGE` object (an attribute, not a local variable) as long as the list is visible, so that
 its events still reach your handler. Demo 04 shows a list in a docking container on the
 selection screen.
 
 Create one list per container and call `display( )` once; to show new data, change the table and
-call `refresh( )`. Calling `display( )` again raises message 009. A container needs SAP GUI: in a
-background job (`sy-batch`) leave out `in_container( )`, so that the list is shown in full screen
-and written to the spool. Full screen offers at most 10 own buttons, so a container list with more
-raises message 006 there.
+call `refresh( )`, also from the selection screen: the sort order and filters the user set stay.
+Calling `display( )` again raises message 009. `selected_rows( )` and `selected_cells( )` work
+outside the events too, for example at `START-OF-SELECTION` for a list on the selection screen.
+
+A container needs SAP GUI. In a background job (`sy-batch`) a container list is shown in full
+screen instead, which writes it to the spool; its own buttons are left out there, and the
+container may be initial.
 
 `handled_by( )` can also be called after `display( )`: for a list in a container, which is shown
 already when `display( )` returns, the handler is registered at once.
@@ -406,7 +439,8 @@ already when `display( )` returns, the handler is registered at once.
 does not fit: a column the table does not have, a total on a text column, a button in a dialog
 box, more than 10 buttons in full screen, a table that is not a standard table with structured
 lines, a filter comparison or total kind that does not exist, a colour or light column of the
-wrong type, a dialog box with impossible coordinates. Several of these make SALV itself dump or
+wrong type, a dialog box with impossible coordinates, a fixed unit or currency next to a unit or
+currency column. Several of these make SALV itself dump or
 silently ignore the setting; SALVage stops them with a message instead. These are mistakes in
 the calling program, so the class inherits from `CX_DYNAMIC_CHECK`: a report does not have to
 catch it, and a mistake shows up at the first test. To show the text instead:
@@ -440,6 +474,7 @@ The ABAP Doc of every public declaration is the full reference (F2 in ADT).
 | `colors_from` | `name` | Row and cell colours from a column of type `LVC_T_SCOL` |
 | `lights_from` | `name` | Traffic lights from a column of type `C` length 1 |
 | `hide_empty_columns` | - | Hides the columns without any value |
+| `fixed_key_columns` | - | Key columns stay in place when scrolling to the right |
 | `top_of_list` | `settings` | Lines of text above the list |
 | `end_of_list` | `settings` | Lines of text below the list |
 | `layout` | `settings` | Layout handling (default: saving allowed) |
@@ -455,7 +490,7 @@ The ABAP Doc of every public declaration is the full reference (F2 in ADT).
 |---|---|
 | `display` | Checks the configuration, applies it, shows the list; raises `ZCX_SALVAGE_ERROR` |
 | `selected_rows` | Indexes of the selected rows, while the list is shown |
-| `selected_cells` | Row index and column name of the selected cells, in selection mode `cells`; whole rows come from `selected_rows` |
+| `selected_cells` | Row index and column name of the selected cells, in selection mode `cells`; whole rows come from `selected_rows`; cells of total lines are left out |
 | `refresh` | Shows the current content of the table again, also after rows were deleted or added; sorting, filters and totals are applied again, the user's sort order, filters and scroll position stay |
 | `layout_f4` (static) | F4 help for a layout parameter of a selection screen |
 
@@ -463,7 +498,7 @@ The ABAP Doc of every public declaration is the full reference (F2 in ADT).
 
 | Type | Components |
 |---|---|
-| `column_settings` | `text`, `tooltip`, `width`, `position`, `is_hidden`, `is_technical`, `is_key`, `is_hotspot`, `is_checkbox`, `is_icon`, `is_zero_hidden`, `unit_column`, `currency_column`, `edit_mask`, `color` |
+| `column_settings` | `text`, `tooltip`, `width`, `position`, `is_hidden`, `is_technical`, `is_key`, `is_hotspot`, `is_checkbox`, `is_icon`, `is_zero_hidden`, `unit_column`, `currency_column`, `unit`, `currency`, `edit_mask`, `color` |
 | `filter_settings` | `is_excluded`, `option`, `low`, `high` |
 | `text_settings` | `heading`, `lines` |
 | `sort_settings` | `has_subtotals` |
@@ -477,9 +512,10 @@ Result types: `row_indexes` (row indexes, from `selected_rows( )`) and `cell_pos
 Selection modes: `zcl_salvage=>selection_modes-single`, `-multiple` (several rows through a
 selection column), `-cells` (single cells or blocks, read with `selected_cells( )`). In mode
 `cells` users can also select whole rows with the row selector on the left; those rows come from
-`selected_rows( )`, not from `selected_cells( )`, so read both.
+`selected_rows( )`, not from `selected_cells( )`, so read both. Total and subtotal lines are not
+returned by either: SALV reports their cells with row 0 or below, which is no row of your table.
 
-Version: `zcl_salvage=>version`, the installed version as `major.minor.patch`, for example `1.2.0`.
+Version: `zcl_salvage=>version`, the installed version as `major.minor.patch`, for example `1.3.0`.
 
 ### Messages of class `ZSALVAGE`
 
@@ -504,6 +540,7 @@ Version: `zcl_salvage=>version`, the installed version as `major.minor.patch`, f
 | 017 | IN_CONTAINER needs a container; the reference passed is initial |
 | 018 | Total kind &1 of column &2 is not supported; see IF_SALV_C_AGGREGATION |
 | 019 | Dialog box columns &1-&2, lines &3-&4: start from 1, end after start |
+| 020 | Column &1 has a fixed unit or currency and a reference column; give one |
 
 ## How it works
 
@@ -522,8 +559,9 @@ Version: `zcl_salvage=>version`, the installed version as `major.minor.patch`, f
 ```
 
 - **Configuration only records.** No configuration method talks to SALV or raises an exception,
-  so the chain reads like a description of the list. Calls can come in any order. The one
-  exception: `handled_by( )` after `display( )` registers the new handler at once.
+  so the chain reads like a description of the list. Calls can come in any order; only of
+  `popup( )` and `in_container( )` the one called last decides the display mode, and
+  `handled_by( )` after `display( )` registers the new handler at once.
 - **`display( )` is the one place that checks and applies.** It checks the configuration as a
   whole, creates the `CL_SALV_TABLE`, and applies one area after the other, each in its own
   `apply_*` method. SALV exceptions are turned into `ZCX_SALVAGE_ERROR` at this boundary.
@@ -546,7 +584,7 @@ Version: `zcl_salvage=>version`, the installed version as `major.minor.patch`, f
   English only.
 - **Testable without a screen.** `display( )` runs the private method `prepare( )` - check the
   configuration, create the `CL_SALV_TABLE`, apply the settings - and only then shows the list. The
-  unit tests in the class (`ltc_salvage`, about 60 tests) call `prepare( )` directly and check
+  unit tests in the class (`ltc_salvage`, about 75 tests) call `prepare( )` directly and check
   the configuration errors, the settings handed to SALV, the button slots of the GUI status and
   the events passed on to the handler.
 - **No copies.** The ALV gets your table by reference, so even large tables cost no extra memory
@@ -595,9 +633,8 @@ discussed in an issue first.
 - **Standard tables with structured lines only**, as `CL_SALV_TABLE` itself; `display( )` rejects
   a sorted or hashed table and a table of strings or numbers with message 011. The table must be
   changeable, see [Quick start](#quick-start).
-- **Background jobs:** full screen lists and dialog boxes go to the spool. A container needs
-  SAP GUI, so a report that may run in a background job leaves out `in_container( )` when
-  `sy-batch` is set, and shows its list in full screen there.
+- **Background jobs:** full screen lists, dialog boxes and container lists go to the spool, the
+  last in full screen and without their own buttons, because a container needs SAP GUI.
 - SALV methods that `CL_SALV_TABLE` inherits from `CL_SALV_MODEL_LIST` and `CL_SALV_MODEL_BASE`
   (for example `SET_SCREEN_STATUS`, `GET_LAYOUT`) are called through `CL_SALV_TABLE`, which is
   classified as classic API.
@@ -609,6 +646,7 @@ discussed in an issue first.
 | Dump `CX_SALV_OBJECT_NOT_FOUND`, "Object ZSALVAGE_GUI-SALVAGE_FULLSCREEN STATUS not found", for a full screen list with own buttons | Program `ZSALVAGE_GUI` exists without its GUI status, for example because it was created by hand | Pull `ZSALVAGE_GUI` again with abapGit; transaction SE41 must then show status `SALVAGE_FULLSCREEN` with the functions `SALVAGE01` to `SALVAGE10` |
 | Runtime error `MOVE_TO_LIT_NOTALLOWED_NODATA` when the list sorts | The table passed to `create( )` is write-protected, for example an `IMPORTING` parameter or a constant | Pass a reference to a variable, for example a copy of the parameter (see [Quick start](#quick-start)) |
 | The main list opens with columns hidden that the user never hid there | Two lists of the program share their layouts, and a default layout saved in the other list is applied | Give each list its own `handle` in `layout( )` |
+| Amounts in JPY or KRW 100 times too small, or a total that adds up different currencies | The line type is declared in the report, so SALV does not know which column holds the currency | Give the column its `currency_column`, or a fixed `currency` when all rows have the same (see [Columns](#columns)) |
 | Message `ZSALVAGE 0nn` shows `amp;` in its text | The text was copied from `zsalvage.msag.xml`, where `&` is written `&amp;` | Correct the text in SE91, or pull the message class with abapGit |
 
 ## Demo reports
@@ -616,7 +654,7 @@ discussed in an issue first.
 | Report | Shows |
 |---|---|
 | `ZSALVAGE_DEMO_01` | The smallest report: one table, one title |
-| `ZSALVAGE_DEMO_02` | Selection screen, column settings, sorting with subtotals, totals, layouts with F4 help, error handling |
+| `ZSALVAGE_DEMO_02` | Selection screen, column settings, fixed key columns, sorting with subtotals, totals, layouts with F4 help, error handling |
 | `ZSALVAGE_DEMO_03` | Own buttons in full screen, row selection, hotspot click, a dialog box opened from a handler, `refresh( )` |
 | `ZSALVAGE_DEMO_04` | A list with an own button in a docking container on the selection screen |
 | `ZSALVAGE_DEMO_05` | Traffic lights, row and cell colours, a filter, text above and below the list, average and maximum, a currency column, hidden empty columns |
