@@ -12,7 +12,7 @@ body:
     attributes:
       label: SALVage version
       description: The value of the constant `ZCL_SALVAGE=>VERSION` (SE24, tab Attributes). Installs older than 1.1.0 have no such constant; give the commit that abapGit shows instead.
-      placeholder: 1.3.0
+      placeholder: 1.4.0
     validations:
       required: true
   - type: input
