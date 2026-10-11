@@ -6,6 +6,34 @@ All notable changes to SALVage are documented here. The format follows
 
 ## [Unreleased]
 
+## [1.2.1] - 2026-10-11
+
+Patch release: a handler set after `display( )` is registered, and the GUI status loses three
+stray functions. Existing calls do not change.
+
+### Fixed
+
+- `handled_by( )` after `display( )` registers the handler. Before, a list in a container whose
+  handler was set after `display( )` returned passed no clicks and no own buttons to it.
+- `ZSALVAGE_GUI`, status `SALVAGE_FULLSCREEN`: removed the functions `&ABCAB`, `&ETADE` and
+  `&GRAPHGR` that release 1.2.0 added by mistake. They were active without menu entry, key or
+  button, carried the texts " Analysis", "Ails" and "Phic", and a code typed into the command
+  field could reach the handler as an own button.
+- Message `ZSALVAGE 011` also covers a reference that is no longer valid, for example to a local
+  table of a method that has ended: "CREATE needs a valid reference to a standard table with
+  structured lines".
+
+### Changed
+
+- `.abapgit.xml`: abapGit checks that `SAP_BASIS` is release 750 or later before the pull, and
+  shows the installed version from `ZCL_SALVAGE=>VERSION`.
+- Documentation (ABAP Doc and README): a report that may run in a background job leaves out
+  `in_container( )` when `sy-batch` is set, and full screen then allows at most 10 own buttons;
+  `hide_empty_columns( )` also hides number columns that are zero in every row and is not
+  repeated by `refresh( )`; how to install under other names; the unit tests use
+  `CL_SALV_SELOPT`, which is not classic API; a new kind of output must check that its SALV
+  objects are classic API. The bug report form suggests the current version.
+
 ## [1.2.0] - 2026-10-09
 
 Minor release: a new method reads the cells the user selected. Existing calls do not change.
