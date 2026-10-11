@@ -154,7 +154,7 @@ a request of their own that does not go to production.
 The demos read the flight data model (`SCARR`, `SFLIGHT`). If its tables are empty, fill them
 with report `SAPBC_DATA_GENERATOR`.
 
-The constant `ZCL_SALVAGE=>VERSION` tells which version a system has, for example `1.3.0`: the
+The constant `ZCL_SALVAGE=>VERSION` tells which version a system has, for example `1.4.0`: the
 [release](https://github.com/greltel/salvage/releases) tag without the `v`. For a production
 system, install a release rather than the latest commit of `main`: switch the abapGit repository
 to the release tag before the pull.
@@ -224,7 +224,10 @@ More column settings:
 `unit_column` and `currency_column` are needed when the line type does not tell SALV which
 column holds the unit or currency, typically for a structure declared in the report. When all
 rows have the same unit or currency, give it with `unit` or `currency` instead. A column takes
-one of the two: a fixed value next to a unit or currency column raises message 020.
+one of the two: a fixed value next to a unit or currency column raises message 020. A fixed
+value also replaces the unit or currency column that the ABAP Dictionary defines for a column,
+for example `CURRENCY` for `SFLIGHT-PRICE`: the amounts are formatted for the fixed currency,
+while the currency column keeps showing its own values.
 
 Without either, SALV shows an amount with two decimals and totals all rows together: amounts
 in currencies with other decimals, such as JPY, show wrong, and the total adds up different
@@ -321,7 +324,8 @@ their default layout is shown at start. To change that:
 ```
 
 `is_save_disabled = abap_true` lets users choose layouts, their default layout included, but not
-save them.
+save them. A `name` for which no layout is saved, for example a typing error on the selection
+screen, shows the list as without a name, with no message.
 
 Give every list of a program its own `handle` when the program shows more than one list, for
 example a list and a dialog box opened from it. Lists with the same handle share their layouts:
@@ -392,7 +396,8 @@ Own buttons per display mode:
 | Dialog box (`popup( )`) | None |
 
 In full screen the toolbar shows the first 40 characters of a button `text` and the first 60 of
-its `tooltip`; a list in a container shows them whole.
+its `tooltip`; a list in a container shows them whole. The menu Extras of a fullscreen list lists
+the own buttons; a button with an icon only appears there with its `tooltip`, or else its name.
 
 ### Display modes
 
@@ -514,8 +519,9 @@ selection column), `-cells` (single cells or blocks, read with `selected_cells( 
 `cells` users can also select whole rows with the row selector on the left; those rows come from
 `selected_rows( )`, not from `selected_cells( )`, so read both. Total and subtotal lines are not
 returned by either: SALV reports their cells with row 0 or below, which is no row of your table.
+Whole columns that users select by clicking the column header are not returned either.
 
-Version: `zcl_salvage=>version`, the installed version as `major.minor.patch`, for example `1.3.0`.
+Version: `zcl_salvage=>version`, the installed version as `major.minor.patch`, for example `1.4.0`.
 
 ### Messages of class `ZSALVAGE`
 
@@ -584,7 +590,7 @@ Version: `zcl_salvage=>version`, the installed version as `major.minor.patch`, f
   English only.
 - **Testable without a screen.** `display( )` runs the private method `prepare( )` - check the
   configuration, create the `CL_SALV_TABLE`, apply the settings - and only then shows the list. The
-  unit tests in the class (`ltc_salvage`, about 75 tests) call `prepare( )` directly and check
+  unit tests in the class (`ltc_salvage`, about 80 tests) call `prepare( )` directly and check
   the configuration errors, the settings handed to SALV, the button slots of the GUI status and
   the events passed on to the handler.
 - **No copies.** The ALV gets your table by reference, so even large tables cost no extra memory
