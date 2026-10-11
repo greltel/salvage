@@ -138,6 +138,11 @@ report from such a system is welcome as an issue.
 The demo package is a subpackage. If you do not want the demos in a system, delete
 `Z_SALVAGE_DEMOS` after the pull; the library does not use them.
 
+To install under other names, for example in your own namespace, rename `ZCL_SALVAGE` and
+`ZSALVAGE_GUI` together: the constant `GUI-PROGRAM` in `ZCL_SALVAGE` names the program, and the ten
+functions `SALVAGE01` to `SALVAGE10` of status `SALVAGE_FULLSCREEN` take their texts from
+`ZCL_SALVAGE=>SLOT_TEXTS-F01` to `-F10`, so the status must be adjusted in SE41 too.
+
 Install with abapGit in the development system only. From there the objects of `Z_SALVAGE`
 travel to quality assurance and production with ordinary transport requests; keep the demos in
 a request of their own that does not go to production.
@@ -272,6 +277,10 @@ dialog box they take room from the rows, so give it enough lines.
 fields of a generic table. Users can show them again through the layout. An empty table hides
 nothing.
 
+"No value" means initial: a number column that is zero in every row is hidden too, also when it
+has a `total( )`. The columns are chosen once, when the list is shown; `refresh( )` neither hides
+nor shows columns.
+
 ### Sorting and totals
 
 ```abap
@@ -383,9 +392,13 @@ its events still reach your handler. Demo 04 shows a list in a docking container
 selection screen.
 
 Create one list per container and call `display( )` once; to show new data, change the table and
-call `refresh( )`. Calling `display( )` again raises message 009. A container needs SAP GUI: a
-report that may run in a background job shows its list in full screen there (`sy-batch`), which
-writes it to the spool.
+call `refresh( )`. Calling `display( )` again raises message 009. A container needs SAP GUI: in a
+background job (`sy-batch`) leave out `in_container( )`, so that the list is shown in full screen
+and written to the spool. Full screen offers at most 10 own buttons, so a container list with more
+raises message 006 there.
+
+`handled_by( )` can also be called after `display( )`: for a list in a container, which is shown
+already when `display( )` returns, the handler is registered at once.
 
 ### Errors
 
@@ -482,7 +495,7 @@ Version: `zcl_salvage=>version`, the installed version as `major.minor.patch`, f
 | 008 | Button &1 is defined more than once |
 | 009 | The list is already displayed; use REFRESH to show changed data |
 | 010 | Selection mode &1 is not supported |
-| 011 | CREATE needs a reference to a standard table with structured lines |
+| 011 | CREATE needs a valid reference to a standard table with structured lines |
 | 012 | Filter on column &1 is not possible |
 | 013 | Column &1 cannot hold the colours: it must be of type LVC_T_SCOL |
 | 014 | Column &1 cannot take its unit or currency from column &2 |
@@ -509,7 +522,8 @@ Version: `zcl_salvage=>version`, the installed version as `major.minor.patch`, f
 ```
 
 - **Configuration only records.** No configuration method talks to SALV or raises an exception,
-  so the chain reads like a description of the list. Calls can come in any order.
+  so the chain reads like a description of the list. Calls can come in any order. The one
+  exception: `handled_by( )` after `display( )` registers the new handler at once.
 - **`display( )` is the one place that checks and applies.** It checks the configuration as a
   whole, creates the `CL_SALV_TABLE`, and applies one area after the other, each in its own
   `apply_*` method. SALV exceptions are turned into `ZCX_SALVAGE_ERROR` at this boundary.
@@ -547,7 +561,7 @@ New features go into the existing objects; the object list stays as short as it 
 | A new option of an existing area (for example a column property) | Add a component with ABAP Doc to the settings structure and handle it in that area's `apply_*` method |
 | A new area (for example print settings) | Add a configuration method that records into a private attribute, an `apply_<area>` method called from `apply_settings`, messages in `ZSALVAGE` for what can go wrong |
 | A new event | Add a method with `DEFAULT IGNORE` to `ZIF_SALVAGE_EVENTS`, a private `on_salv_<event>` handler, and register it in `register_handler` |
-| A new kind of output (for example a spreadsheet download) | Add a final method next to `display( )` that reuses `check_configuration`, `new_salv` and `apply_settings` |
+| A new kind of output | Add a final method next to `display( )` that reuses `check_configuration`, `new_salv` and `apply_settings`. Check first that the SALV objects it needs are classic API: a spreadsheet download, for example, needs `IF_SALV_BS_XML`, which is not |
 
 Every change keeps ABAP 7.50 syntax, ABAP Doc on every public declaration, methods of at most
 three parameters and about 20 statements, and a clean abaplint run. A new global object is
@@ -568,7 +582,9 @@ discussed in an issue first.
   One exception: `refresh( )` passes the constant `IF_SALV_C_REFRESH=>FULL`, which is not in
   that list. The default soft refresh keeps the filter and the groups of the old rows, so after
   a row was deleted or added, filtered rows show again and subtotals go; no classic object
-  chooses the refresh mode.
+  chooses the refresh mode. The unit tests read filter conditions back through
+  `CL_SALV_SELOPT`, which is not in that list either; this concerns the test class only, not the
+  code your reports run.
 - **Own buttons:** at most 10 in full screen, none in a dialog box. A fullscreen list with own
   buttons uses the status of `ZSALVAGE_GUI`, which leaves out a few functions of SAP's standard
   status to make room for the ten slots: the views SAP List Viewer, Microsoft Excel, Lotus 1-2-3
@@ -580,7 +596,8 @@ discussed in an issue first.
   a sorted or hashed table and a table of strings or numbers with message 011. The table must be
   changeable, see [Quick start](#quick-start).
 - **Background jobs:** full screen lists and dialog boxes go to the spool. A container needs
-  SAP GUI, so a report that may run in a background job shows its list in full screen there.
+  SAP GUI, so a report that may run in a background job leaves out `in_container( )` when
+  `sy-batch` is set, and shows its list in full screen there.
 - SALV methods that `CL_SALV_TABLE` inherits from `CL_SALV_MODEL_LIST` and `CL_SALV_MODEL_BASE`
   (for example `SET_SCREEN_STATUS`, `GET_LAYOUT`) are called through `CL_SALV_TABLE`, which is
   classified as classic API.
