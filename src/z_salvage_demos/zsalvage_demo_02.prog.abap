@@ -1,4 +1,5 @@
-" SALVage demo 02: columns, fixed key columns, sorting with subtotals, totals and saved layouts.
+" SALVage demo 02: columns, fixed key columns, sorting with subtotals and the latest flight
+" first, totals and saved layouts.
 " A layout name typed on the selection screen is checked before the list is shown.
 REPORT zsalvage_demo_02.
 
@@ -34,6 +35,7 @@ CLASS lcl_demo DEFINITION FINAL CREATE PUBLIC.
       BEGIN OF column,
         airline        TYPE lvc_fname VALUE 'CARRID',
         connection     TYPE lvc_fname VALUE 'CONNID',
+        flight_date    TYPE lvc_fname VALUE 'FLDATE',
         plane_type     TYPE lvc_fname VALUE 'PLANETYPE',
         price          TYPE lvc_fname VALUE 'PRICE',
         currency       TYPE lvc_fname VALUE 'CURRENCY',
@@ -96,6 +98,8 @@ CLASS lcl_demo IMPLEMENTATION.
                )->sort_by( name     = column-airline
                            settings = VALUE #( has_subtotals = abap_true )
                )->sort_by( column-connection
+               )->sort_by( name     = column-flight_date
+                           settings = VALUE #( is_descending = abap_true )
                )->total( column-seats_maximum
                )->total( column-seats_occupied
                )->layout( VALUE #( name = layout )

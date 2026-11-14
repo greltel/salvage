@@ -1,0 +1,22 @@
+name: classic-api
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  classic-api:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Get the API classifications of SAP's Cloudification Repository
+        run: |
+          base=https://raw.githubusercontent.com/SAP/abap-atc-cr-cv-s4hc/main/src
+          curl -fsSL --retry 3 -o classifications.json "$base/objectClassifications_SAP.json"
+          curl -fsSL --retry 3 -o released.json "$base/objectReleaseInfo_PCELatest.json"
+      - name: Check that the sources use only classic API or released SAP objects
+        run: >
+          python3 .github/scripts/check_classic_api.py
+          --classifications classifications.json
+          --released released.json
+          src
