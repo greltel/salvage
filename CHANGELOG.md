@@ -6,6 +6,63 @@ All notable changes to SALVage are documented here. The format follows
 
 ## [Unreleased]
 
+New options for sorting, layouts and the selection, a list that can be displayed again after
+the user left it, and a check of the SAP objects in the GitHub workflow. Existing calls do not
+change.
+
+### Added
+
+- `sort_settings-is_descending`: `sort_by( )` sorts a column in descending order. SALV takes the
+  order as a value of `IF_SALV_C_SORT`, which is not classified as classic API, so `ZCL_SALVAGE`
+  does not use that interface: it keeps the two values as private constants (`sort_sequences`),
+  and a unit test compares them with the interface. Demo report `ZSALVAGE_DEMO_02` shows the
+  latest flight first.
+- `layout_settings-program`: the program the layouts are kept for, where the default, the program
+  that created the list (`sy-cprog`), does not fit - for example a list that a class shows from
+  user exits of several transactions. `layout_f4( )` and `layout_exists( )` take the same name
+  in the new optional parameter `program`.
+- `select_rows( )`: selects rows in place of the user (`SET_SELECTED_ROWS` of
+  `CL_SALV_SELECTIONS`), on a list that is on the screen at once, in the chain when the list is
+  shown. Indexes without a row are left out.
+- Message `ZSALVAGE 022` "A button needs a name; the name passed to BUTTON is initial".
+- GitHub workflow `classic-api`: `.github/scripts/check_classic_api.py` reads the SAP classes
+  and interfaces that the sources name and fails when one is not classified as classic API in
+  the [Cloudification Repository](https://github.com/SAP/abap-atc-cr-cv-s4hc), or is one of the
+  objects SALVage never uses (`CL_GUI_ALV_GRID`, the SALV adapters). The exceptions are listed
+  in `.github/scripts/classic_api_exceptions.txt` with the reason for each.
+- 9 unit tests (94 in all): a list the user left can be displayed again, a button without a
+  name, descending and ascending sort order, the program of the layout key, and rows selected
+  by the report.
+
+### Changed
+
+- `display( )` can be called again after the user left a fullscreen list or a dialog box: it
+  shows the list anew from the configuration and the current rows. Before, the second call
+  raised message 009, whose advice to use `refresh( )` does not help for a list that is closed.
+  Message 009 remains for a list that is on the screen - a list in a container, or a call from
+  an event handler of the list itself - and its text now says so: "The list is on the screen
+  already; use REFRESH to show changed data".
+- `refresh( )` does nothing after the user left a fullscreen list or a dialog box. Before, it
+  called SALV for a list that was no longer shown.
+- `button( )` takes its `name` as `csequence`, like the column names of the other methods; it
+  was typed `SALV_DE_FUNCTION`. Existing calls compile unchanged.
+
+### Fixed
+
+- A button with an initial name was accepted, and its click reached the handler without a name.
+  `display( )` now raises message 022.
+
+### Documentation
+
+- A layout that is loaded at start wins over the chain, and a layout saved while
+  `hide_empty_columns( )` hid a column keeps it hidden when it has values later (README,
+  ABAP Doc of `layout( )` and `hide_empty_columns( )`).
+- A list for a container recognises a run without a screen by `sy-batch` only; a dialog run
+  such as `SUBMIT ... TO SAP-SPOOL` gets message 017 when the container was not created
+  (README, ABAP Doc of `in_container( )`).
+- `selected_rows( )`, `selected_cells( )` and `selected_columns( )` after the user left a
+  fullscreen list or a dialog box return what SALV still holds of the selection.
+
 ## [1.5.0] - 2026-10-11
 
 Minor release: a list without export or printing, the columns a user selected as a whole, and a

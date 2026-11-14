@@ -67,6 +67,8 @@ CLASS zcl_salvage DEFINITION
         "! abap_true: a subtotal line after each group of equal values, for every column
         "! with a total (see {@link zcl_salvage.METH:total})
         has_subtotals TYPE abap_bool,
+        "! abap_true: descending order, the highest value first; initial: ascending order
+        is_descending TYPE abap_bool,
       END OF sort_settings.
 
     TYPES:
@@ -82,6 +84,11 @@ CLASS zcl_salvage DEFINITION
         handle           TYPE slis_handl,
         "! abap_true: users can choose layouts, their default layout included, but cannot save them
         is_save_disabled TYPE abap_bool,
+        "! Program the layouts are kept for; initial: the program that created the list (sy-cprog).
+        "! Give one name where the same list is shown from several programs, for example from user
+        "! exits of several transactions, so that it has the same layouts in all of them. Pass the
+        "! name to {@link zcl_salvage.METH:layout_f4} and {@link zcl_salvage.METH:layout_exists} too.
+        program          TYPE syrepid,
       END OF layout_settings.
 
     TYPES:
@@ -225,10 +232,13 @@ CLASS zcl_salvage DEFINITION
     "!
     "! @parameter current | Value of the parameter now; returned unchanged when the user cancels
     "! @parameter handle  | Handle of the list, if the report uses one in {@link zcl_salvage.METH:layout}
+    "! @parameter program | Program of the layouts, if the report gives one in
+    "!                      {@link zcl_salvage.METH:layout}; initial: the calling program
     "! @parameter result  | Name of the layout the user picked
     CLASS-METHODS layout_f4
       IMPORTING current       TYPE slis_vari
                 handle        TYPE slis_handl OPTIONAL
+                program       TYPE syrepid OPTIONAL
       RETURNING VALUE(result) TYPE slis_vari.
 
     "! Tells whether a layout of this name is saved for the calling program. Use it to check a
@@ -237,12 +247,15 @@ CLASS zcl_salvage DEFINITION
     "! class ZSALVAGE says so, for example MESSAGE e021(zsalvage) WITH name in
     "! AT SELECTION-SCREEN ON.
     "!
-    "! @parameter name   | Name of the layout
-    "! @parameter handle | Handle of the list, if the report uses one in {@link zcl_salvage.METH:layout}
-    "! @parameter result | abap_true if the layout is saved; abap_false also for an initial name
+    "! @parameter name    | Name of the layout
+    "! @parameter handle  | Handle of the list, if the report uses one in {@link zcl_salvage.METH:layout}
+    "! @parameter program | Program of the layouts, if the report gives one in
+    "!                      {@link zcl_salvage.METH:layout}; initial: the calling program
+    "! @parameter result  | abap_true if the layout is saved; abap_false also for an initial name
     CLASS-METHODS layout_exists
       IMPORTING name          TYPE slis_vari
                 handle        TYPE slis_handl OPTIONAL
+                program       TYPE syrepid OPTIONAL
       RETURNING VALUE(result) TYPE abap_bool.
 
     "! Sets the header shown above the list.
@@ -277,11 +290,12 @@ CLASS zcl_salvage DEFINITION
                 settings    TYPE column_settings
       RETURNING VALUE(self) TYPE REF TO zcl_salvage.
 
-    "! Sorts the rows by a column in ascending order. Call it once per column; the first call
-    "! is the first sort criterion.
+    "! Sorts the rows by a column, in ascending order unless the settings ask for descending.
+    "! Call it once per column; the first call is the first sort criterion.
     "!
     "! @parameter name     | Name of the column
-    "! @parameter settings | Subtotals for the criterion; initial: none
+    "! @parameter settings | Descending order and subtotals for the criterion; initial: ascending
+    "!                       order without subtotals
     "! @parameter self     | This list, for the next call of the chain
     METHODS sort_by
       IMPORTING name        TYPE csequence
@@ -335,7 +349,9 @@ CLASS zcl_salvage DEFINITION
     "! Hides every column that is initial in all rows; a number column whose rows are all zero
     "! counts as empty too. Users can show it again through the layout. Decided once, when the
     "! list is shown: {@link zcl_salvage.METH:refresh} neither hides nor shows columns. Reads
-    "! the rows once per column; an empty table hides nothing.
+    "! the rows once per column; an empty table hides nothing. A layout that is loaded when the
+    "! list is shown decides which columns show instead: one saved while a column was hidden as
+    "! empty keeps it hidden also when it has values later.
     "!
     "! @parameter self | This list, for the next call of the chain
     METHODS hide_empty_columns
@@ -368,9 +384,11 @@ CLASS zcl_salvage DEFINITION
 
     "! Changes the layout (variant) handling. Without this call users can save layouts for
     "! themselves and for all users, kept per calling program, and the default layout of the
-    "! user is shown at start.
+    "! user is shown at start. A layout that is loaded at start wins over the chain: it decides
+    "! which columns show, their order and width, the sorting, the totals and the filters.
     "!
-    "! @parameter settings | Layout at start, handle, and whether saving is allowed
+    "! @parameter settings | Layout at start, handle, whether saving is allowed, and the program
+    "!                       the layouts are kept for
     "! @parameter self     | This list, for the next call of the chain
     METHODS layout
       IMPORTING settings    TYPE layout_settings
@@ -391,11 +409,12 @@ CLASS zcl_salvage DEFINITION
     "! {@link zcl_salvage.METH:handled_by}. A fullscreen list offers 10 own buttons, a list in a
     "! container any number, a dialog box ({@link zcl_salvage.METH:popup}) none.
     "!
-    "! @parameter name     | Name of the button, passed to the handler on a click in upper case
+    "! @parameter name     | Name of the button, passed to the handler on a click in upper case;
+    "!                       an initial name makes {@link zcl_salvage.METH:display} raise an error
     "! @parameter settings | Text, icon and quick info
     "! @parameter self     | This list, for the next call of the chain
     METHODS button
-      IMPORTING name        TYPE salv_de_function
+      IMPORTING name        TYPE csequence
                 settings    TYPE button_settings
       RETURNING VALUE(self) TYPE REF TO zcl_salvage.
 
@@ -437,7 +456,10 @@ CLASS zcl_salvage DEFINITION
     "! list per container and display it once; for new data change the table and call
     "! {@link zcl_salvage.METH:refresh}. A container needs SAP GUI: in a background job
     "! (sy-batch) the list is shown in full screen instead, which writes it to the spool, and the
-    "! own buttons are left out.
+    "! own buttons are left out. Only sy-batch tells a run without a screen: a dialog run that
+    "! never shows the screen of the container, for example SUBMIT ... TO SAP-SPOOL, is not
+    "! recognised, and {@link zcl_salvage.METH:display} raises an error when the container was
+    "! not created there.
     "!
     "! @parameter container | Container the list fills; an initial reference makes
     "!                        {@link zcl_salvage.METH:display} raise an error, except in a
@@ -448,7 +470,10 @@ CLASS zcl_salvage DEFINITION
       RETURNING VALUE(self) TYPE REF TO zcl_salvage.
 
     "! Checks the configuration, applies it and shows the list. A fullscreen list or a dialog
-    "! box returns when the user leaves it; a list in a container returns at once.
+    "! box returns when the user leaves it; a list in a container returns at once. After the user
+    "! left a fullscreen list or a dialog box, another call shows the list again, built anew from
+    "! the configuration and the current rows of the table. A list that is on the screen cannot
+    "! be displayed again: use {@link zcl_salvage.METH:refresh} there.
     "!
     "! @raising zcx_salvage_error | The configuration does not fit the table or the display mode,
     "!                              for example a column the table does not have, a total on a
@@ -456,14 +481,15 @@ CLASS zcl_salvage DEFINITION
     "!                              exist, a colour or light column of the wrong type, too many
     "!                              buttons, impossible dialog box coordinates, a container that
     "!                              is missing, a fixed unit or currency next to a unit or
-    "!                              currency column; or the list was displayed already. The message of
-    "!                              class ZSALVAGE says which; nothing is shown
+    "!                              currency column; or the list is on the screen already. The
+    "!                              message of class ZSALVAGE says which; nothing is shown
     METHODS display
       RAISING zcx_salvage_error.
 
     "! Rows the user has selected, while the list is shown, for example in an event handler or,
     "! for a list in a container, at START-OF-SELECTION. Total and subtotal lines are not
-    "! included.
+    "! included. After the user left a fullscreen list or a dialog box, the result is what SALV
+    "! still holds of the selection; the list cannot tell whether the user confirmed or cancelled.
     "!
     "! @parameter result | Indexes of the selected rows in the table, in ascending order;
     "!                     empty before {@link zcl_salvage.METH:display}
@@ -494,8 +520,22 @@ CLASS zcl_salvage DEFINITION
     "! changed, deleted or added rows. Sorting, filters and totals are applied again to the
     "! new content; the sort order and the filters the user set, and the scroll position, stay,
     "! also for a list in a container refreshed from the selection screen. Does nothing before
-    "! {@link zcl_salvage.METH:display}.
+    "! {@link zcl_salvage.METH:display} and after the user left a fullscreen list or a dialog box.
     METHODS refresh.
+
+    "! Selects rows in place of the user. On a list that is on the screen it replaces the
+    "! selection, for example in an event handler; before {@link zcl_salvage.METH:display} it sets
+    "! the rows that are selected when the list is shown. Use it with
+    "! {@link zcl_salvage.METH:selection}. The list sorts the table itself, at start, when the
+    "! user sorts and at {@link zcl_salvage.METH:refresh}: indexes read before that point to
+    "! other rows after it.
+    "!
+    "! @parameter rows | Indexes of the rows in the table, in the order it has then; indexes
+    "!                   without a row are left out, an empty table selects no row
+    "! @parameter self | This list, for the next call of the chain
+    METHODS select_rows
+      IMPORTING rows        TYPE row_indexes
+      RETURNING VALUE(self) TYPE REF TO zcl_salvage.
 
   PRIVATE SECTION.
     TYPES:
@@ -570,6 +610,14 @@ CLASS zcl_salvage DEFINITION
         default_option TYPE salv_de_selopt_option VALUE 'EQ',
       END OF filter_values.
 
+    " Sort orders of SALV. The values are those of IF_SALV_C_SORT, which is not classified as
+    " classic API, so they are repeated here; the unit tests compare them with that interface
+    CONSTANTS:
+      BEGIN OF sort_sequences,
+        ascending  TYPE salv_de_sort_sequence VALUE 1,
+        descending TYPE salv_de_sort_sequence VALUE 2,
+      END OF sort_sequences.
+
     " The comparisons of a ranges table. SALV takes any other value without an error and dumps
     " when it shows the list, so DISPLAY rejects it before
     CONSTANTS filter_options TYPE string VALUE `EQ NE GT GE LT LE BT NB CP NP`.
@@ -605,13 +653,24 @@ CLASS zcl_salvage DEFINITION
     DATA end_text            TYPE text_settings.
     DATA layout_options      TYPE layout_settings.
     DATA row_selection       TYPE selection_mode.
+    DATA rows_to_select      TYPE row_indexes.
+    DATA selects_rows        TYPE abap_bool.
     DATA buttons             TYPE own_buttons.
     DATA toolbar_options     TYPE toolbar_settings.
     DATA handler             TYPE REF TO zif_salvage_events.
     DATA popup_area          TYPE popup_settings.
     DATA container           TYPE REF TO cl_gui_container.
     DATA salv                TYPE REF TO cl_salv_table.
+    " IS_DISPLAYED: SALV was shown, so its selections can be read. IS_OPEN: it is on the screen
+    " now - a fullscreen list or a dialog box until the user leaves it, a list in a container
+    " from DISPLAY on
     DATA is_displayed        TYPE abap_bool.
+    DATA is_open             TYPE abap_bool.
+
+    CLASS-METHODS layout_key
+      IMPORTING program       TYPE syrepid
+                handle        TYPE slis_handl
+      RETURNING VALUE(result) TYPE salv_s_layout_key.
 
     METHODS prepare
       RAISING zcx_salvage_error.
@@ -772,6 +831,11 @@ CLASS zcl_salvage DEFINITION
       RETURNING VALUE(result) TYPE i
       RAISING   zcx_salvage_error.
 
+    METHODS apply_selected_rows.
+
+    METHODS selectable_rows
+      RETURNING VALUE(result) TYPE salv_t_row.
+
     METHODS apply_layout.
 
     METHODS apply_functions
@@ -837,11 +901,17 @@ CLASS ZCL_SALVAGE IMPLEMENTATION.
 
 
   METHOD layout_f4.
-    DATA(layout_key) = VALUE salv_s_layout_key( report = sy-cprog
-                                                handle = handle ).
-    DATA(picked) = cl_salv_layout_service=>f4_layouts( s_key  = layout_key
+    DATA(picked) = cl_salv_layout_service=>f4_layouts( s_key  = layout_key( program = program
+                                                                            handle  = handle )
                                                        layout = current ).
     result = COND #( WHEN picked-layout IS INITIAL THEN current ELSE picked-layout ).
+  ENDMETHOD.
+
+
+  METHOD layout_key.
+    " Layouts are kept per program: the one named, or else the one that runs
+    result-report = COND #( WHEN program IS INITIAL THEN sy-cprog ELSE to_upper( program ) ).
+    result-handle = handle.
   ENDMETHOD.
 
 
@@ -945,7 +1015,7 @@ CLASS ZCL_SALVAGE IMPLEMENTATION.
   METHOD handled_by.
     me->handler = handler.
     " A list in a container is shown already; registering the same handler twice has no effect
-    IF is_displayed = abap_true.
+    IF is_open = abap_true.
       register_handler( ).
     ENDIF.
     self = me.
@@ -990,7 +1060,7 @@ CLASS ZCL_SALVAGE IMPLEMENTATION.
     " added, filtered rows show and subtotals go. The full refresh keeps the sort order and the
     " filters, also the user's. IF_SALV_C_REFRESH is not classified as classic API; it is the one
     " exception, because no classic object chooses the refresh mode
-    IF is_displayed = abap_true.
+    IF is_open = abap_true.
       salv->refresh( s_stable     = VALUE #( row = abap_true
                                              col = abap_true )
                      refresh_mode = if_salv_c_refresh=>full ).
@@ -999,7 +1069,8 @@ CLASS ZCL_SALVAGE IMPLEMENTATION.
 
 
   METHOD check_configuration.
-    IF is_displayed = abap_true.
+    " A fullscreen list or a dialog box the user has left can be shown again
+    IF is_open = abap_true.
       RAISE EXCEPTION TYPE zcx_salvage_error MESSAGE e009(zsalvage).
     ENDIF.
     IF is_supported_table( ) = abap_false.
@@ -1028,6 +1099,10 @@ CLASS ZCL_SALVAGE IMPLEMENTATION.
       RAISE EXCEPTION TYPE zcx_salvage_error MESSAGE e006(zsalvage) WITH gui-slots.
     ENDIF.
     LOOP AT buttons INTO DATA(entry).
+      " The handler tells the buttons apart by their names
+      IF entry-name IS INITIAL.
+        RAISE EXCEPTION TYPE zcx_salvage_error MESSAGE e022(zsalvage).
+      ENDIF.
       INSERT entry-name INTO TABLE names.
       IF sy-subrc <> 0.
         RAISE EXCEPTION TYPE zcx_salvage_error MESSAGE e008(zsalvage) WITH entry-name.
@@ -1280,8 +1355,12 @@ CLASS ZCL_SALVAGE IMPLEMENTATION.
   METHOD apply_sorts.
     DATA(salv_sorts) = salv->get_sorts( ).
     LOOP AT sorts INTO DATA(criterion).
+      DATA(sequence) = COND salv_de_sort_sequence( WHEN criterion-settings-is_descending = abap_true
+                                                   THEN sort_sequences-descending
+                                                   ELSE sort_sequences-ascending ).
       TRY.
           salv_sorts->add_sort( columnname = criterion-name
+                                sequence   = sequence
                                 subtotal   = criterion-settings-has_subtotals ).
         CATCH cx_salv_not_found INTO DATA(not_found).
           raise_unknown_column( name     = criterion-name
@@ -1390,6 +1469,37 @@ CLASS ZCL_SALVAGE IMPLEMENTATION.
     IF row_selection IS NOT INITIAL.
       salv->get_selections( )->set_selection_mode( salv_selection_mode( ) ).
     ENDIF.
+    apply_selected_rows( ).
+  ENDMETHOD.
+
+
+  METHOD apply_selected_rows.
+    IF selects_rows = abap_true.
+      salv->get_selections( )->set_selected_rows( selectable_rows( ) ).
+    ENDIF.
+  ENDMETHOD.
+
+
+  METHOD selectable_rows.
+    FIELD-SYMBOLS <rows> TYPE STANDARD TABLE.
+
+    ASSIGN table->* TO <rows>.
+    ASSERT sy-subrc = 0.
+    " An index without a row is no selection
+    DATA(row_count) = lines( <rows> ).
+    result = VALUE #( FOR row IN rows_to_select WHERE ( table_line > 0 AND table_line <= row_count )
+                      ( row ) ).
+  ENDMETHOD.
+
+
+  METHOD select_rows.
+    rows_to_select = rows.
+    selects_rows = abap_true.
+    " A list on the screen takes the selection now, any other list when DISPLAY shows it
+    IF is_open = abap_true.
+      apply_selected_rows( ).
+    ENDIF.
+    self = me.
   ENDMETHOD.
 
 
@@ -1409,8 +1519,10 @@ CLASS ZCL_SALVAGE IMPLEMENTATION.
 
   METHOD apply_layout.
     DATA(salv_layout) = salv->get_layout( ).
-    salv_layout->set_key( VALUE #( report = program
-                                   handle = layout_options-handle ) ).
+    salv_layout->set_key( layout_key( program = COND #( WHEN layout_options-program IS INITIAL
+                                                        THEN program
+                                                        ELSE layout_options-program )
+                                      handle  = layout_options-handle ) ).
     " The user's default layout is loaded also when saving is off; only saving depends on it
     salv_layout->set_default( abap_true ).
     IF layout_options-is_save_disabled = abap_false.
@@ -1493,11 +1605,19 @@ CLASS ZCL_SALVAGE IMPLEMENTATION.
 
 
   METHOD show.
-    IF output = output_modes-fullscreen.
-      show_fullscreen( ).
-    ELSE.
-      salv->display( ).
-    ENDIF.
+    is_open = abap_true.
+    TRY.
+        IF output = output_modes-fullscreen.
+          show_fullscreen( ).
+        ELSE.
+          salv->display( ).
+        ENDIF.
+      CLEANUP.
+        is_open = abap_false.
+    ENDTRY.
+    " SALV returns from a fullscreen list or a dialog box when the user has left it, and from
+    " a list in a container at once, which then stays on the screen
+    is_open = xsdbool( output = output_modes-container ).
   ENDMETHOD.
 
 
@@ -1721,6 +1841,8 @@ CLASS ZCL_SALVAGE IMPLEMENTATION.
       CLEAR buttons.
     ENDIF.
     check_configuration( ).
+    " From here on SALV is a new one, which was not shown yet
+    is_displayed = abap_false.
     salv = new_salv( ).
     apply_settings( ).
   ENDMETHOD.
@@ -1813,8 +1935,8 @@ CLASS ZCL_SALVAGE IMPLEMENTATION.
     IF name IS INITIAL.
       RETURN.
     ENDIF.
-    DATA(layouts) = cl_salv_layout_service=>get_layouts( s_key  = VALUE #( report = sy-cprog
-                                                                           handle = handle )
+    DATA(layouts) = cl_salv_layout_service=>get_layouts( s_key  = layout_key( program = program
+                                                                              handle  = handle )
                                                          layout = name ).
     " LAYOUT can also take a pattern, so only a layout of exactly this name counts
     result = xsdbool( line_exists( layouts[ layout = name ] ) ).

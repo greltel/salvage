@@ -60,7 +60,7 @@
      <SPRSL>E</SPRSL>
      <ARBGB>ZSALVAGE</ARBGB>
      <MSGNR>009</MSGNR>
-     <TEXT>The list is already displayed; use REFRESH to show changed data</TEXT>
+     <TEXT>The list is on the screen already; use REFRESH to show changed data</TEXT>
     </T100>
     <T100>
      <SPRSL>E</SPRSL>
@@ -133,6 +133,12 @@
      <ARBGB>ZSALVAGE</ARBGB>
      <MSGNR>021</MSGNR>
      <TEXT>Layout &amp;1 does not exist</TEXT>
+    </T100>
+    <T100>
+     <SPRSL>E</SPRSL>
+     <ARBGB>ZSALVAGE</ARBGB>
+     <MSGNR>022</MSGNR>
+     <TEXT>A button needs a name; the name passed to BUTTON is initial</TEXT>
     </T100>
    </T100>
   </asx:values>

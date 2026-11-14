@@ -84,6 +84,7 @@ CLASS ltc_salvage DEFINITION FINAL FOR TESTING RISK LEVEL HARMLESS DURATION SHOR
         total_kind        TYPE symsgno VALUE '018',
         popup_size        TYPE symsgno VALUE '019',
         fixed_and_column  TYPE symsgno VALUE '020',
+        no_button_name    TYPE symsgno VALUE '022',
       END OF messages.
 
     CONSTANTS:
@@ -111,6 +112,7 @@ CLASS ltc_salvage DEFINITION FINAL FOR TESTING RISK LEVEL HARMLESS DURATION SHOR
         name    TYPE slis_vari  VALUE '/TEST',
         handle  TYPE slis_handl VALUE 'HEAD',
         missing TYPE slis_vari  VALUE '/NO_LAYOUT',
+        program TYPE syrepid    VALUE 'ZSALVAGE_SHARED_LIST',
       END OF layout_values.
 
     CONSTANTS alpha_mask TYPE lvc_edtmsk VALUE '==ALPHA'.
@@ -245,6 +247,15 @@ CLASS ltc_salvage DEFINITION FINAL FOR TESTING RISK LEVEL HARMLESS DURATION SHOR
     METHODS when_not_shown_then_no_columns FOR TESTING.
     METHODS when_unknown_layout_then_false FOR TESTING.
     METHODS when_no_layout_name_then_false FOR TESTING.
+    METHODS when_closed_then_shown_again  FOR TESTING.
+    METHODS when_shown_again_then_new_salv FOR TESTING.
+    METHODS when_blank_button_then_raises FOR TESTING.
+    METHODS when_descending_then_sort_down FOR TESTING RAISING cx_static_check.
+    METHODS when_no_order_then_sort_up    FOR TESTING RAISING cx_static_check.
+    METHODS when_layout_program_then_key  FOR TESTING.
+    METHODS when_no_program_then_own_key  FOR TESTING.
+    METHODS when_select_rows_then_existing FOR TESTING.
+    METHODS when_select_rows_then_accepted FOR TESTING.
 
     METHODS when_slot_then_button_name    FOR TESTING.
     METHODS when_container_then_same_name FOR TESTING.
@@ -363,15 +374,15 @@ CLASS ltc_salvage IMPLEMENTATION.
   ENDMETHOD.
 
   METHOD when_displayed_then_raises.
-    " Given a list that is already shown
+    " Given a list that is on the screen
     DATA(list) = new_list( ).
-    list->is_displayed = abap_true.
+    list->is_open = abap_true.
     " When
     DATA(message) = rejection_of( list ).
     " Then
     cl_abap_unit_assert=>assert_equals( act = message
                                         exp = messages-displayed_twice
-                                        msg = `A list must not be displayed twice` ).
+                                        msg = `A list on the screen must not be displayed again` ).
   ENDMETHOD.
 
   METHOD when_11_buttons_then_raises.
@@ -1443,5 +1454,110 @@ CLASS ltc_salvage IMPLEMENTATION.
     " Then
     cl_abap_unit_assert=>assert_false( act = exists
                                        msg = `An initial name must not count as a saved layout` ).
+  ENDMETHOD.
+
+  METHOD when_closed_then_shown_again.
+    " Given a fullscreen list that was shown and that the user has left
+    DATA(list) = new_list( ).
+    list->is_displayed = abap_true.
+    list->is_open = abap_false.
+    " When
+    DATA(message) = rejection_of( list ).
+    " Then
+    cl_abap_unit_assert=>assert_initial( act = message
+                                         msg = `A list the user has left must be displayable again` ).
+  ENDMETHOD.
+
+  METHOD when_shown_again_then_new_salv.
+    " Given a list that was shown and that the user has left
+    DATA(list) = new_list( ).
+    list->is_displayed = abap_true.
+    " When it is prepared for another display
+    list->prepare( ).
+    " Then
+    cl_abap_unit_assert=>assert_false( act = list->is_displayed
+                                       msg = `The SALV of another DISPLAY was not shown yet` ).
+  ENDMETHOD.
+
+  METHOD when_blank_button_then_raises.
+    " Given
+    DATA(list) = new_list( )->button( name     = ``
+                                      settings = VALUE #( text = `No name` ) ).
+    " When
+    DATA(message) = rejection_of( list ).
+    " Then
+    cl_abap_unit_assert=>assert_equals( act = message
+                                        exp = messages-no_button_name
+                                        msg = `A button without a name must be rejected` ).
+  ENDMETHOD.
+
+  METHOD when_descending_then_sort_down.
+    " Given
+    DATA(list) = new_list( )->sort_by( name     = columns-airline
+                                       settings = VALUE #( is_descending = abap_true ) ).
+    " When
+    list->prepare( ).
+    " Then SALV got the order its own constant stands for. IF_SALV_C_SORT is not classic API;
+    " test class only
+    DATA(criterion) = list->salv->get_sorts( )->get_sort( columns-airline ).
+    cl_abap_unit_assert=>assert_equals( act = criterion->get_sequence( )
+                                        exp = if_salv_c_sort=>sort_down
+                                        msg = `The sort criterion must be descending` ).
+  ENDMETHOD.
+
+  METHOD when_no_order_then_sort_up.
+    " Given
+    DATA(list) = new_list( )->sort_by( columns-airline ).
+    " When
+    list->prepare( ).
+    " Then
+    DATA(criterion) = list->salv->get_sorts( )->get_sort( columns-airline ).
+    cl_abap_unit_assert=>assert_equals( act = criterion->get_sequence( )
+                                        exp = if_salv_c_sort=>sort_up
+                                        msg = `Without a setting the sort criterion must be ascending` ).
+  ENDMETHOD.
+
+  METHOD when_layout_program_then_key.
+    " Given
+    DATA(list) = new_list( )->layout( VALUE #( program = layout_values-program ) ).
+    " When
+    list->prepare( ).
+    " Then
+    cl_abap_unit_assert=>assert_equals( act = list->salv->get_layout( )->get_key( )-report
+                                        exp = layout_values-program
+                                        msg = `The layouts must be kept for the program given` ).
+  ENDMETHOD.
+
+  METHOD when_no_program_then_own_key.
+    " Given
+    DATA(list) = new_list( ).
+    " When
+    list->prepare( ).
+    " Then
+    cl_abap_unit_assert=>assert_equals( act = list->salv->get_layout( )->get_key( )-report
+                                        exp = sy-cprog
+                                        msg = `Without a program the layouts must be kept for the calling one` ).
+  ENDMETHOD.
+
+  METHOD when_select_rows_then_existing.
+    " Given a table of two rows and a selection with an index before and one after them
+    DATA(list) = new_list( )->select_rows( VALUE #( ( 0 ) ( 2 ) ( 3 ) ) ).
+    " When
+    DATA(selectable) = list->selectable_rows( ).
+    " Then
+    cl_abap_unit_assert=>assert_equals( act = selectable
+                                        exp = VALUE salv_t_row( ( 2 ) )
+                                        msg = `Only indexes of rows of the table must be selected` ).
+  ENDMETHOD.
+
+  METHOD when_select_rows_then_accepted.
+    " Given
+    DATA(list) = new_list( )->selection( zcl_salvage=>selection_modes-multiple
+                           )->select_rows( VALUE #( ( 1 ) ( 2 ) ) ).
+    " When
+    DATA(message) = rejection_of( list ).
+    " Then
+    cl_abap_unit_assert=>assert_initial( act = message
+                                         msg = `Rows selected before DISPLAY must not be rejected` ).
   ENDMETHOD.
 ENDCLASS.
