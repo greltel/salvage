@@ -5,7 +5,8 @@
 INTERFACE zif_salvage_events
   PUBLIC.
 
-  "! The user double-clicked a cell. Not raised for total and subtotal lines.
+  "! The user double-clicked a cell. Not raised for total and subtotal lines, nor for a row
+  "! that the table has no more because it was deleted without a refresh of the list.
   "!
   "! @parameter row    | Index of the row in your table. The list sorts your table itself, so
   "!                     table[ row ] is the row the user sees, also after sorting.
@@ -15,7 +16,7 @@ INTERFACE zif_salvage_events
               column TYPE lvc_fname.
 
   "! The user clicked a cell of a hotspot column (see {@link zcl_salvage.METH:column}). Not raised
-  "! for total and subtotal lines.
+  "! for total and subtotal lines, nor for a row that the table has no more.
   "!
   "! @parameter row    | Index of the row in your table, as for {@link zif_salvage_events.METH:on_double_click}
   "! @parameter column | Name of the column the user clicked
@@ -25,7 +26,8 @@ INTERFACE zif_salvage_events
 
   "! The user clicked an own button (see {@link zcl_salvage.METH:button}). Read the selected rows
   "! with {@link zcl_salvage.METH:selected_rows}; call {@link zcl_salvage.METH:refresh} after
-  "! changing the table.
+  "! changing the table. Only own buttons arrive here: any other function code, for example one
+  "! the user types into the command field, is left out.
   "!
   "! @parameter button | Name the button was added with, in upper case
   METHODS on_button_click DEFAULT IGNORE
