@@ -7,8 +7,9 @@ All notable changes to SALVage are documented here. The format follows
 ## [Unreleased]
 
 New options for sorting, layouts and the selection, a list that can be displayed again after
-the user left it, and a check of the SAP objects in the GitHub workflow. Existing calls do not
-change.
+the user left it, a check of the SAP objects in the GitHub workflow, and the results of a review
+of the class: configuration mistakes that ended in a runtime error or in a wrong list get a
+message. Existing calls do not change, except for what was a mistake before: see Changed.
 
 ### Added
 
@@ -33,6 +34,22 @@ change.
 - 9 unit tests (94 in all): a list the user left can be displayed again, a button without a
   name, descending and ascending sort order, the program of the layout key, and rows selected
   by the report.
+- Message `ZSALVAGE 023` "Filter value &1 of column &2 must be a number in internal format":
+  `display( )` checks the values of `filter_by( )` for number columns and for columns of type N.
+  See Fixed.
+- Message `ZSALVAGE 024` "GUI status &1 of program &2 is missing; pull the program with
+  abapGit". See Fixed.
+- Message `ZSALVAGE 025` "Column &1 cannot show checkboxes: it must be of type C length 1":
+  `is_checkbox` on a column of any other type was handed to SALV unchecked.
+- 29 unit tests (123 in all): filter values of number columns, a GUI status that is missing,
+  a checkbox column without a tick, function codes that are no own button, column positions
+  (after the last column, in either order of the calls, twice for one column), the combinations
+  of unit and currency settings, a checkbox column of the wrong type, a click on a row the
+  table has no more, the text of a button in a container, own buttons in a background job; and
+  nine gaps: a hashed table, a reference to a structure, an unknown column in `total( )` and
+  `lights_from( )`, a total given twice, a comparison in lower case, the texts of all ten button
+  slots, a handler set after `display( )`, and a layout program in lower case. The tests no
+  longer depend on whether ABAP Unit runs in a background job.
 
 ### Changed
 
@@ -46,11 +63,55 @@ change.
   called SALV for a list that was no longer shown.
 - `button( )` takes its `name` as `csequence`, like the column names of the other methods; it
   was typed `SALV_DE_FUNCTION`. Existing calls compile unchanged.
+- `column_settings-position`: the positions of all columns are worked out together and applied
+  from the left. Columns with a position each get their own, whatever the order of the
+  `column( )` calls; a position after the last column means the last one; of two positions for
+  one column the later call counts. Before, each position was applied in the order of the
+  calls, so `column( 'B' position = 2 )` followed by `column( 'A' position = 1 )` left B in
+  third place, and a position after the last column was left to SALV.
+- Message 020 covers every combination of `unit`, `unit_column`, `currency` and
+  `currency_column` for one column, also from separate `column( )` calls. Before, it covered a
+  fixed value next to the column of the same kind only; a unit next to a currency, or a unit
+  column next to a currency column, went to SALV, which shows one of them. Its text is now
+  "Column &1: give only one of UNIT, UNIT_COLUMN, CURRENCY, CURRENCY_COLUMN".
+- `hide_empty_columns( )` no longer hides a column shown as a checkbox (`is_checkbox`). A
+  checkbox without a tick in any row counted as empty, so a clickable checkbox
+  (`is_checkbox` with `is_hotspot`) that starts without ticks was not there to click.
+- `on_button_click` is raised for own buttons only. SALV reports every function code it does
+  not know, also one the user types into the command field; such a code reached the handler as
+  if it were a button.
+- `on_double_click` and `on_link_click` are not raised for a row the table does not have any
+  more, as after a handler deleted rows without `refresh( )`. A handler reading `table[ row ]`
+  ended in `CX_SY_ITAB_LINE_NOT_FOUND`.
+- In a background job (`sy-batch`) no list has own buttons. Before, only a list for a container
+  lost them; a fullscreen list kept the GUI status of `ZSALVAGE_GUI` for a spool list where
+  nobody can click. A dialog box with own buttons is no longer rejected with message 007 there.
+- `selected_rows( )`, `selected_cells( )` and `selected_columns( )` fetch the state of the front
+  end (`GET_METADATA` of `CL_SALV_TABLE`) before they read the selection of a list that is on
+  the screen. On SAP S/4HANA 2023 the selection was current without it; reports from older
+  releases show an empty selection for a list in a container that is read outside the events
+  of SALV.
+- A button in a container that has neither text nor icon shows its quick info as text, or else
+  its name, as the menu of a fullscreen list does. Before, it showed nothing.
+- `hide_empty_columns( )` reads the cells of a column by the position of the component instead
+  of its name, which was looked up again in every row.
+- `.github/scripts/classic_api_exceptions.txt`: `CX_SALV_OBJECT_NOT_FOUND` for
+  `ZCL_SALVAGE`; see Fixed and Limitations in the README.
 
 ### Fixed
 
 - A button with an initial name was accepted, and its click reached the handler without a name.
   `display( )` now raises message 022.
+- A fullscreen list with own buttons ended in runtime error `CX_SALV_OBJECT_NOT_FOUND` when
+  program `ZSALVAGE_GUI` had no GUI status `SALVAGE_FULLSCREEN`, for example after an
+  incomplete transport. SALV raises that exception outside every RAISING clause; `display( )`
+  now catches it and raises message 024 with the exception of SALV as `PREVIOUS`.
+  `CX_SALV_OBJECT_NOT_FOUND` is not classified as classic API and SALV raises no classic
+  exception in its place, so it is the second documented exception next to `IF_SALV_C_REFRESH`.
+- `filter_by( )` handed any value to SALV, which compares it with the rows when it shows the
+  list; a value that is no number for a number column, such as text or a number with a decimal
+  comma, can end there in runtime error `CONVT_NO_NUMBER`. `display( )` now raises message 023
+  for it. Initial values and the patterns of `CP` and `NP` are not checked.
 
 ### Documentation
 
@@ -62,6 +123,10 @@ change.
   (README, ABAP Doc of `in_container( )`).
 - `selected_rows( )`, `selected_cells( )` and `selected_columns( )` after the user left a
   fullscreen list or a dialog box return what SALV still holds of the selection.
+- Another `layout( )` call replaces the settings of the previous one as a whole, its handle and
+  program included (README, ABAP Doc of `layout( )`).
+- The methods of `ZIF_SALVAGE_EVENTS` have no RAISING clause: a handler that calls
+  `display( )` must catch `ZCX_SALVAGE_ERROR` itself (README, Errors).
 
 ## [1.5.0] - 2026-10-11
 

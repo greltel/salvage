@@ -20,7 +20,8 @@ CLASS zcl_salvage DEFINITION
         tooltip         TYPE string,
         "! Output width in characters; ignored when {@link zcl_salvage.METH:optimized} is used
         width           TYPE i,
-        "! Position from the left, starting at 1
+        "! Position from the left, starting at 1; a position after the last column is the last
+        "! one. Columns with a position each get their own, whatever the order of the calls
         position        TYPE i,
         "! abap_true: hidden at start; users can show the column again through the layout
         is_hidden       TYPE abap_bool,
@@ -33,26 +34,27 @@ CLASS zcl_salvage DEFINITION
         "! abap_true: abap_true and abap_false are shown as a checkbox the user cannot change.
         "! Together with is_hotspot a click calls {@link zif_salvage_events.METH:on_link_click},
         "! where the handler may switch the value in the table and call
-        "! {@link zcl_salvage.METH:refresh}.
+        "! {@link zcl_salvage.METH:refresh}. The column must be of type C length 1, for example
+        "! abap_bool: any other type makes {@link zcl_salvage.METH:display} raise an error.
         is_checkbox     TYPE abap_bool,
         "! abap_true: cells hold icon codes, for example constants of type pool ICON
         is_icon         TYPE abap_bool,
         "! abap_true: cells with the value zero stay empty
         is_zero_hidden  TYPE abap_bool,
         "! Column that holds the unit of this quantity column. Needed when the line type does
-        "! not define the unit itself, for example a structure declared in the report.
+        "! not define the unit itself, for example a structure declared in the report. A column
+        "! takes one of unit_column, currency_column, unit and currency: with two of them, also
+        "! from separate calls, {@link zcl_salvage.METH:display} raises an error.
         unit_column     TYPE lvc_qfname,
         "! Column that holds the currency of this amount column; see unit_column
         currency_column TYPE lvc_cfname,
         "! Unit of all rows of this quantity column, in internal format, for example KG; for a
-        "! column without unit column. Together with unit_column {@link zcl_salvage.METH:display}
-        "! raises an error. It also replaces a unit column that the ABAP Dictionary defines for
-        "! the column; that column keeps showing its own values.
+        "! column without unit column, see unit_column. It also replaces a unit column that the
+        "! ABAP Dictionary defines for the column; that column keeps showing its own values.
         unit            TYPE lvc_quan,
         "! Currency of all rows of this amount column, for example EUR; for a column without
-        "! currency column. Together with currency_column {@link zcl_salvage.METH:display} raises
-        "! an error. It also replaces a currency column that the ABAP Dictionary defines for the
-        "! column; that column keeps showing its own values.
+        "! currency column, see unit_column. It also replaces a currency column that the ABAP
+        "! Dictionary defines for the column; that column keeps showing its own values.
         currency        TYPE lvc_curr,
         "! Output format: ==ALPHA for the conversion exit ALPHA, or a mask such as __:__
         edit_mask       TYPE lvc_edtmsk,
@@ -105,7 +107,8 @@ CLASS zcl_salvage DEFINITION
       "! An own toolbar button, for {@link zcl_salvage.METH:button}.
       BEGIN OF button_settings,
         "! Text on the button; a fullscreen list shows its first 40 characters. In the menu Extras
-        "! of a fullscreen list a button without text shows its quick info, or else its name
+        "! of a fullscreen list a button without text shows its quick info, or else its name; so
+        "! does a button in a container that has neither text nor icon
         text    TYPE string,
         "! Icon on the button, for example ICON_RELEASE of type pool ICON
         icon    TYPE icon_d,
@@ -134,7 +137,10 @@ CLASS zcl_salvage DEFINITION
         is_excluded TYPE abap_bool,
         "! Comparison: EQ, NE, GT, GE, LT, LE, BT, NB, CP or NP, in any case; initial: EQ
         option      TYPE salv_de_selopt_option,
-        "! Value in internal format, for example 20261231 for a date
+        "! Value in internal format, for example 20261231 for a date. For a number column it must
+        "! be a number, for example 1250.5 or -3, and for a column of type N digits only: any
+        "! other value makes {@link zcl_salvage.METH:display} raise an error. Patterns of the
+        "! comparisons CP and NP are not checked
         low         TYPE salv_de_selopt_low,
         "! Upper value, for the comparisons BT and NB. Left initial, it is the initial value of the
         "! column, so BT from 100 to an initial number keeps no row
@@ -351,7 +357,9 @@ CLASS zcl_salvage DEFINITION
     "! list is shown: {@link zcl_salvage.METH:refresh} neither hides nor shows columns. Reads
     "! the rows once per column; an empty table hides nothing. A layout that is loaded when the
     "! list is shown decides which columns show instead: one saved while a column was hidden as
-    "! empty keeps it hidden also when it has values later.
+    "! empty keeps it hidden also when it has values later. A column shown as a checkbox
+    "! (is_checkbox in {@link zcl_salvage.METH:column}) is never hidden: a checkbox without a
+    "! tick is a value, which the user may want to change.
     "!
     "! @parameter self | This list, for the next call of the chain
     METHODS hide_empty_columns
@@ -386,6 +394,8 @@ CLASS zcl_salvage DEFINITION
     "! themselves and for all users, kept per calling program, and the default layout of the
     "! user is shown at start. A layout that is loaded at start wins over the chain: it decides
     "! which columns show, their order and width, the sorting, the totals and the filters.
+    "! Another call replaces the settings of the previous one as a whole, its handle and program
+    "! included: pass all of them in one call.
     "!
     "! @parameter settings | Layout at start, handle, whether saving is allowed, and the program
     "!                       the layouts are kept for
@@ -407,7 +417,8 @@ CLASS zcl_salvage DEFINITION
     "! Adds an own button to the toolbar. A click calls
     "! {@link zif_salvage_events.METH:on_button_click} of the handler passed to
     "! {@link zcl_salvage.METH:handled_by}. A fullscreen list offers 10 own buttons, a list in a
-    "! container any number, a dialog box ({@link zcl_salvage.METH:popup}) none.
+    "! container any number, a dialog box ({@link zcl_salvage.METH:popup}) none. In a background
+    "! job (sy-batch) no list has own buttons: in the spool nobody can click them.
     "!
     "! @parameter name     | Name of the button, passed to the handler on a click in upper case;
     "!                       an initial name makes {@link zcl_salvage.METH:display} raise an error
@@ -478,11 +489,13 @@ CLASS zcl_salvage DEFINITION
     "! @raising zcx_salvage_error | The configuration does not fit the table or the display mode,
     "!                              for example a column the table does not have, a total on a
     "!                              text column, a filter comparison or total kind that does not
-    "!                              exist, a colour or light column of the wrong type, too many
-    "!                              buttons, impossible dialog box coordinates, a container that
-    "!                              is missing, a fixed unit or currency next to a unit or
-    "!                              currency column; or the list is on the screen already. The
-    "!                              message of class ZSALVAGE says which; nothing is shown
+    "!                              exist, a filter value that is no number for a number column,
+    "!                              a colour, light or checkbox column of the wrong type, too
+    "!                              many buttons, impossible dialog box coordinates, a container
+    "!                              that is missing, more than one unit or currency setting for
+    "!                              a column, a GUI status of the own buttons that is missing;
+    "!                              or the list is on the screen already. The message of class
+    "!                              ZSALVAGE says which; nothing is shown
     METHODS display
       RAISING zcx_salvage_error.
 
@@ -573,6 +586,13 @@ CLASS zcl_salvage DEFINITION
       END OF own_button.
     TYPES own_buttons TYPE STANDARD TABLE OF own_button WITH EMPTY KEY.
 
+    TYPES:
+      BEGIN OF column_position,
+        name     TYPE lvc_fname,
+        position TYPE i,
+      END OF column_position.
+    TYPES column_positions TYPE STANDARD TABLE OF column_position WITH EMPTY KEY.
+
     TYPES function_names TYPE STANDARD TABLE OF salv_de_function WITH EMPTY KEY.
     TYPES slot_number TYPE n LENGTH 2.
     TYPES output_mode TYPE c LENGTH 1.
@@ -602,12 +622,15 @@ CLASS zcl_salvage DEFINITION
         end_line     TYPE i VALUE 25,
       END OF default_popup.
 
-    " Signs of a filter condition, and the option of a condition that leaves it initial
+    " Signs of a filter condition, the option of a condition that leaves it initial, and the
+    " options that compare with a pattern instead of a value
     CONSTANTS:
       BEGIN OF filter_values,
         including      TYPE salv_de_selopt_sign   VALUE 'I',
         excluding      TYPE salv_de_selopt_sign   VALUE 'E',
         default_option TYPE salv_de_selopt_option VALUE 'EQ',
+        pattern        TYPE salv_de_selopt_option VALUE 'CP',
+        no_pattern     TYPE salv_de_selopt_option VALUE 'NP',
       END OF filter_values.
 
     " Sort orders of SALV. The values are those of IF_SALV_C_SORT, which is not classified as
@@ -622,17 +645,23 @@ CLASS zcl_salvage DEFINITION
     " when it shows the list, so DISPLAY rejects it before
     CONSTANTS filter_options TYPE string VALUE `EQ NE GT GE LT LE BT NB CP NP`.
 
+    " All a filter value for a column of type N may hold
+    CONSTANTS digits TYPE string VALUE `0123456789`.
+
     " Text above and below the list is one column of a form grid, one line per row
     CONSTANTS text_form_column TYPE i VALUE 1.
 
     " The only type SALV takes for the colours of rows and cells
     CONSTANTS color_table_type TYPE string VALUE `\TYPE=LVC_T_SCOL`.
 
-    " Traffic lights come from a character field of this length
-    CONSTANTS light_field_length TYPE i VALUE 1.
+    " Traffic lights and checkboxes come from a character field of this length
+    CONSTANTS one_char_length TYPE i VALUE 1.
 
     " Screen columns and lines are counted from 1
     CONSTANTS first_screen_position TYPE i VALUE 1.
+
+    " Of UNIT, UNIT_COLUMN, CURRENCY and CURRENCY_COLUMN a column takes this many
+    CONSTANTS unit_settings_per_column TYPE i VALUE 1.
 
     DATA table               TYPE REF TO data.
     DATA program             TYPE syrepid.
@@ -661,6 +690,8 @@ CLASS zcl_salvage DEFINITION
     DATA popup_area          TYPE popup_settings.
     DATA container           TYPE REF TO cl_gui_container.
     DATA salv                TYPE REF TO cl_salv_table.
+    " GUI-STATUS, unless a unit test names a status that does not exist
+    DATA fullscreen_status   TYPE sypfkey.
     " IS_DISPLAYED: SALV was shown, so its selections can be read. IS_OPEN: it is on the screen
     " now - a fullscreen list or a dialog box until the user leaves it, a list in a container
     " from DISPLAY on
@@ -687,6 +718,18 @@ CLASS zcl_salvage DEFINITION
     METHODS check_filters
       RAISING zcx_salvage_error.
 
+    METHODS check_filter_values
+      RAISING zcx_salvage_error.
+
+    METHODS fits_column_type
+      IMPORTING filter_value  TYPE csequence
+                descriptor    TYPE REF TO cl_abap_datadescr
+      RETURNING VALUE(result) TYPE abap_bool.
+
+    METHODS is_number
+      IMPORTING text          TYPE csequence
+      RETURNING VALUE(result) TYPE abap_bool.
+
     METHODS check_totals
       RAISING zcx_salvage_error.
 
@@ -699,11 +742,11 @@ CLASS zcl_salvage DEFINITION
     METHODS check_fixed_units
       RAISING zcx_salvage_error.
 
-    METHODS has_unit_column
+    METHODS unit_setting_count
       IMPORTING column_name   TYPE lvc_fname
-      RETURNING VALUE(result) TYPE abap_bool.
+      RETURNING VALUE(result) TYPE i.
 
-    METHODS has_currency_column
+    METHODS is_checkbox_column
       IMPORTING column_name   TYPE lvc_fname
       RETURNING VALUE(result) TYPE abap_bool.
 
@@ -716,7 +759,7 @@ CLASS zcl_salvage DEFINITION
       IMPORTING descriptor    TYPE REF TO cl_abap_datadescr
       RETURNING VALUE(result) TYPE abap_bool.
 
-    METHODS is_light_field
+    METHODS is_one_char_field
       IMPORTING descriptor    TYPE REF TO cl_abap_datadescr
       RETURNING VALUE(result) TYPE abap_bool.
 
@@ -747,8 +790,22 @@ CLASS zcl_salvage DEFINITION
       IMPORTING columns TYPE REF TO cl_salv_columns_table.
 
     METHODS is_empty_column
-      IMPORTING name          TYPE lvc_fname
+      IMPORTING position      TYPE i
       RETURNING VALUE(result) TYPE abap_bool.
+
+    METHODS component_position
+      IMPORTING name          TYPE lvc_fname
+      RETURNING VALUE(result) TYPE i.
+
+    METHODS apply_column_positions
+      IMPORTING columns TYPE REF TO cl_salv_columns_table.
+
+    METHODS column_order
+      IMPORTING columns       TYPE REF TO cl_salv_columns_table
+      RETURNING VALUE(result) TYPE column_names.
+
+    METHODS requested_positions
+      RETURNING VALUE(result) TYPE column_positions.
 
     METHODS apply_column
       IMPORTING columns TYPE REF TO cl_salv_columns_table
@@ -836,14 +893,34 @@ CLASS zcl_salvage DEFINITION
     METHODS selectable_rows
       RETURNING VALUE(result) TYPE salv_t_row.
 
+    METHODS current_selections
+      RETURNING VALUE(result) TYPE REF TO cl_salv_selections.
+
+    METHODS row_count
+      RETURNING VALUE(result) TYPE i.
+
     METHODS apply_layout.
 
     METHODS apply_functions
       RAISING zcx_salvage_error.
 
+    METHODS apply_own_status
+      RAISING zcx_salvage_error.
+
+    METHODS apply_function_list
+      RAISING zcx_salvage_error.
+
     METHODS add_container_buttons
       IMPORTING functions TYPE REF TO cl_salv_functions_list
       RAISING   zcx_salvage_error.
+
+    METHODS container_button_text
+      IMPORTING button        TYPE own_button
+      RETURNING VALUE(result) TYPE string.
+
+    METHODS button_label
+      IMPORTING button        TYPE own_button
+      RETURNING VALUE(result) TYPE string.
 
     METHODS hide_unused_slots
       IMPORTING functions TYPE REF TO cl_salv_functions_list.
@@ -897,6 +974,7 @@ CLASS ZCL_SALVAGE IMPLEMENTATION.
     result->program = sy-cprog.
     result->output  = output_modes-fullscreen.
     result->in_background = xsdbool( sy-batch IS NOT INITIAL ).
+    result->fullscreen_status = gui-status.
   ENDMETHOD.
 
 
@@ -1047,7 +1125,7 @@ CLASS ZCL_SALVAGE IMPLEMENTATION.
   METHOD selected_rows.
     " After a DISPLAY that raised, SALV exists but was never shown
     IF is_displayed = abap_true.
-      result = salv->get_selections( )->get_selected_rows( ).
+      result = current_selections( )->get_selected_rows( ).
       " Total and subtotal lines come as row 0 or below, which is no row of the table
       DELETE result WHERE table_line <= 0.
       SORT result BY table_line.
@@ -1058,8 +1136,8 @@ CLASS ZCL_SALVAGE IMPLEMENTATION.
   METHOD refresh.
     " A soft refresh keeps the filter and the groups of the old rows: after a row was deleted or
     " added, filtered rows show and subtotals go. The full refresh keeps the sort order and the
-    " filters, also the user's. IF_SALV_C_REFRESH is not classified as classic API; it is the one
-    " exception, because no classic object chooses the refresh mode
+    " filters, also the user's. IF_SALV_C_REFRESH is not classified as classic API; it is used
+    " all the same, because no classic object chooses the refresh mode
     IF is_open = abap_true.
       salv->refresh( s_stable     = VALUE #( row = abap_true
                                              col = abap_true )
@@ -1082,6 +1160,7 @@ CLASS ZCL_SALVAGE IMPLEMENTATION.
     ENDIF.
     check_buttons( ).
     check_filters( ).
+    check_filter_values( ).
     check_totals( ).
     check_special_columns( ).
     check_fixed_units( ).
@@ -1173,6 +1252,7 @@ CLASS ZCL_SALVAGE IMPLEMENTATION.
       apply_column( columns = salv_columns
                     change  = change ).
     ENDLOOP.
+    apply_column_positions( salv_columns ).
   ENDMETHOD.
 
 
@@ -1205,7 +1285,9 @@ CLASS ZCL_SALVAGE IMPLEMENTATION.
       RETURN.
     ENDIF.
     LOOP AT columns->get( ) INTO DATA(entry).
-      IF is_empty_column( entry-columnname ) = abap_true.
+      " A checkbox without a tick is a value, not an empty cell: the user may want to tick it
+      IF is_checkbox_column( entry-columnname ) = abap_false
+          AND is_empty_column( component_position( entry-columnname ) ) = abap_true.
         entry-r_column->set_visible( abap_false ).
       ENDIF.
     ENDLOOP.
@@ -1217,14 +1299,37 @@ CLASS ZCL_SALVAGE IMPLEMENTATION.
 
     ASSIGN table->* TO <rows>.
     ASSERT sy-subrc = 0.
-    " Without rows every column would count as empty, and the list would have none left
-    result = xsdbool( <rows> IS NOT INITIAL ).
+    " Without rows every column would count as empty, and the list would have none left. A
+    " column that is no component of the table line is kept too
+    result = xsdbool( <rows> IS NOT INITIAL AND position > 0 ).
+    IF result = abap_false.
+      RETURN.
+    ENDIF.
+    " By its position: by its name the component would be looked up again in every row
     LOOP AT <rows> ASSIGNING FIELD-SYMBOL(<row>).
-      ASSIGN COMPONENT name OF STRUCTURE <row> TO FIELD-SYMBOL(<value>).
+      ASSIGN COMPONENT position OF STRUCTURE <row> TO FIELD-SYMBOL(<value>).
       IF sy-subrc <> 0 OR <value> IS NOT INITIAL.
         result = abap_false.
         RETURN.
       ENDIF.
+    ENDLOOP.
+  ENDMETHOD.
+
+
+  METHOD component_position.
+    " Where ASSIGN COMPONENT finds the component in a table line; 0 if the line has none of the name
+    DATA(table_type) = CAST cl_abap_tabledescr( cl_abap_typedescr=>describe_by_data_ref( table ) ).
+    DATA(line_type) = CAST cl_abap_structdescr( table_type->get_table_line_type( ) ).
+    result = line_index( line_type->components[ name = name ] ).
+  ENDMETHOD.
+
+
+  METHOD is_checkbox_column.
+    " Settings of one column can come from several calls of COLUMN
+    LOOP AT changed_columns TRANSPORTING NO FIELDS
+         WHERE name = column_name AND settings-is_checkbox = abap_true.
+      result = abap_true.
+      RETURN.
     ENDLOOP.
   ENDMETHOD.
 
@@ -1244,10 +1349,50 @@ CLASS ZCL_SALVAGE IMPLEMENTATION.
                         settings = change-settings ).
     apply_column_references( column   = salv_column
                              settings = change-settings ).
-    IF change-settings-position > 0.
-      columns->set_column_position( columnname = change-name
-                                    position   = change-settings-position ).
+  ENDMETHOD.
+
+
+  METHOD apply_column_positions.
+    " The whole order is worked out first and then set from the left. So it depends neither on
+    " the order of the COLUMN calls nor on where a column stood before
+    LOOP AT column_order( columns ) INTO DATA(name).
+      " A copy: SY-TABIX itself changes with the table statements of the called method
+      DATA(position) = sy-tabix.
+      columns->set_column_position( columnname = name
+                                    position   = position ).
+    ENDLOOP.
+  ENDMETHOD.
+
+
+  METHOD column_order.
+    DATA(positions) = requested_positions( ).
+    IF positions IS INITIAL.
+      RETURN.
     ENDIF.
+    " The columns without a position keep their order
+    LOOP AT columns->get( ) INTO DATA(entry).
+      IF NOT line_exists( positions[ name = entry-columnname ] ).
+        INSERT entry-columnname INTO TABLE result.
+      ENDIF.
+    ENDLOOP.
+    " In ascending order a column does not move one that was placed before it. A position after
+    " the last column means the last one
+    LOOP AT positions INTO DATA(wanted).
+      DATA(index) = nmin( val1 = wanted-position
+                          val2 = lines( result ) + 1 ).
+      INSERT wanted-name INTO result INDEX index.
+    ENDLOOP.
+  ENDMETHOD.
+
+
+  METHOD requested_positions.
+    " The position of the last COLUMN call for a column counts, as for its other settings
+    LOOP AT changed_columns INTO DATA(change) WHERE settings-position > 0.
+      DELETE result WHERE name = change-name.
+      INSERT VALUE #( name     = change-name
+                      position = change-settings-position ) INTO TABLE result.
+    ENDLOOP.
+    SORT result STABLE BY position.
   ENDMETHOD.
 
 
@@ -1537,9 +1682,29 @@ CLASS ZCL_SALVAGE IMPLEMENTATION.
 
   METHOD apply_functions.
     IF buttons IS NOT INITIAL AND output = output_modes-fullscreen.
-      salv->set_screen_status( report   = gui-program
-                               pfstatus = gui-status ).
+      apply_own_status( ).
+    ELSE.
+      apply_function_list( ).
     ENDIF.
+  ENDMETHOD.
+
+
+  METHOD apply_own_status.
+    " SALV reads the functions of the status while the function list is set up. For a status
+    " that does not exist it raises an exception that no RAISING clause declares, which would
+    " end the report in a runtime error
+    TRY.
+        salv->set_screen_status( report   = gui-program
+                                 pfstatus = fullscreen_status ).
+        apply_function_list( ).
+      CATCH cx_salv_object_not_found INTO DATA(not_found).
+        RAISE EXCEPTION TYPE zcx_salvage_error MESSAGE e024(zsalvage) WITH fullscreen_status gui-program
+          EXPORTING previous = not_found.
+    ENDTRY.
+  ENDMETHOD.
+
+
+  METHOD apply_function_list.
     " Switched on here instead of through SET_SCREEN_STATUS: its constants for this are not
     " classified as classic API
     DATA(functions) = salv->get_functions( ).
@@ -1561,7 +1726,7 @@ CLASS ZCL_SALVAGE IMPLEMENTATION.
       TRY.
           functions->add_function( name     = entry-name
                                    icon     = CONV #( entry-settings-icon )
-                                   text     = entry-settings-text
+                                   text     = container_button_text( entry )
                                    tooltip  = entry-settings-tooltip
                                    position = if_salv_c_function_position=>right_of_salv_functions ).
         CATCH cx_salv_existing cx_salv_wrong_call INTO DATA(function_error).
@@ -1569,6 +1734,21 @@ CLASS ZCL_SALVAGE IMPLEMENTATION.
             EXPORTING previous = function_error.
       ENDTRY.
     ENDLOOP.
+  ENDMETHOD.
+
+
+  METHOD container_button_text.
+    " A button without text and icon would show nothing: it gets the text that stands for it in
+    " the menu of a fullscreen list. With an icon it stays a button with the icon only
+    result = COND #( WHEN button-settings-icon IS INITIAL THEN button_label( button )
+                     ELSE button-settings-text ).
+  ENDMETHOD.
+
+
+  METHOD button_label.
+    result = COND #( WHEN button-settings-text IS NOT INITIAL THEN button-settings-text
+                     WHEN button-settings-tooltip IS NOT INITIAL THEN button-settings-tooltip
+                     ELSE button-name ).
   ENDMETHOD.
 
 
@@ -1638,9 +1818,11 @@ CLASS ZCL_SALVAGE IMPLEMENTATION.
   METHOD fullscreen_texts.
     " One component of FUNCTION_SLOT_TEXTS per slot of the GUI status, in slot order
     DO gui-slots TIMES.
-      ASSIGN COMPONENT sy-index OF STRUCTURE result TO FIELD-SYMBOL(<text>).
+      " A copy: SY-INDEX itself would change with a loop in the called method
+      DATA(slot) = sy-index.
+      ASSIGN COMPONENT slot OF STRUCTURE result TO FIELD-SYMBOL(<text>).
       ASSERT sy-subrc = 0.
-      <text> = slot_text( sy-index ).
+      <text> = slot_text( slot ).
     ENDDO.
   ENDMETHOD.
 
@@ -1649,16 +1831,13 @@ CLASS ZCL_SALVAGE IMPLEMENTATION.
     IF slot > lines( buttons ).
       RETURN.
     ENDIF.
-    DATA(settings) = buttons[ slot ]-settings.
+    DATA(button) = buttons[ slot ].
     " The menu Extras shows TEXT and leaves out a function without it; the toolbar shows the icon
     " with ICON_TEXT, so a button with an icon only stays one
-    DATA(menu_text) = COND string( WHEN settings-text IS NOT INITIAL THEN settings-text
-                                   WHEN settings-tooltip IS NOT INITIAL THEN settings-tooltip
-                                   ELSE buttons[ slot ]-name ).
-    DATA(dynamic_text) = VALUE smp_dyntxt( text      = menu_text
-                                           icon_id   = settings-icon
-                                           icon_text = settings-text
-                                           quickinfo = settings-tooltip ).
+    DATA(dynamic_text) = VALUE smp_dyntxt( text      = button_label( button )
+                                           icon_id   = button-settings-icon
+                                           icon_text = button-settings-text
+                                           quickinfo = button-settings-tooltip ).
     " Dynamic function texts are character fields laid out like SMP_DYNTXT
     result = dynamic_text.
   ENDMETHOD.
@@ -1682,8 +1861,9 @@ CLASS ZCL_SALVAGE IMPLEMENTATION.
 
   METHOD on_salv_double_click.
     " HANDLED_BY may have cleared the handler after the list was shown. Total and subtotal lines
-    " come as row 0, which is no row of the table
-    IF handler IS BOUND AND row > 0.
+    " come as row 0, and a row that was deleted without a REFRESH lies after the last row:
+    " neither is a row of the table
+    IF handler IS BOUND AND row > 0 AND row <= row_count( ).
       handler->on_double_click( row    = row
                                 column = column ).
     ENDIF.
@@ -1691,7 +1871,7 @@ CLASS ZCL_SALVAGE IMPLEMENTATION.
 
 
   METHOD on_salv_link_click.
-    IF handler IS BOUND AND row > 0.
+    IF handler IS BOUND AND row > 0 AND row <= row_count( ).
       handler->on_link_click( row    = row
                               column = column ).
     ENDIF.
@@ -1699,8 +1879,22 @@ CLASS ZCL_SALVAGE IMPLEMENTATION.
 
 
   METHOD on_salv_added_function.
-    IF handler IS BOUND.
-      handler->on_button_click( button_name( e_salv_function ) ).
+    DATA(name) = button_name( e_salv_function ).
+    " SALV reports every function code it does not know, also one the user types into the
+    " command field. Only an own button is the handler's business
+    IF handler IS BOUND AND line_exists( buttons[ name = name ] ).
+      handler->on_button_click( name ).
+    ENDIF.
+  ENDMETHOD.
+
+
+  METHOD row_count.
+    FIELD-SYMBOLS <rows> TYPE STANDARD TABLE.
+
+    " A table that is gone has no rows
+    ASSIGN table->* TO <rows>.
+    IF sy-subrc = 0.
+      result = lines( <rows> ).
     ENDIF.
   ENDMETHOD.
 
@@ -1732,6 +1926,53 @@ CLASS ZCL_SALVAGE IMPLEMENTATION.
   ENDMETHOD.
 
 
+  METHOD check_filter_values.
+    " SALV takes any value and compares it with the cells when it shows the list. For a number
+    " column a value that is no number ends there in runtime error CONVT_NO_NUMBER. A pattern
+    " is no value, and an initial value stands for the initial value of the column
+    LOOP AT filters INTO DATA(condition)
+         WHERE settings-option <> filter_values-pattern AND settings-option <> filter_values-no_pattern.
+      DATA(descriptor) = column_type( condition-name ).
+      LOOP AT VALUE string_table( ( CONV #( condition-settings-low ) )
+                                  ( CONV #( condition-settings-high ) ) ) INTO DATA(filter_value).
+        IF filter_value IS NOT INITIAL AND fits_column_type( filter_value = filter_value
+                                                             descriptor   = descriptor ) = abap_false.
+          RAISE EXCEPTION TYPE zcx_salvage_error MESSAGE e023(zsalvage)
+            WITH filter_value condition-name.
+        ENDIF.
+      ENDLOOP.
+    ENDLOOP.
+  ENDMETHOD.
+
+
+  METHOD fits_column_type.
+    " Text, dates and times are compared as characters, which cannot fail
+    result = SWITCH #( descriptor->type_kind
+                       WHEN cl_abap_typedescr=>typekind_int OR cl_abap_typedescr=>typekind_int1
+                         OR cl_abap_typedescr=>typekind_int2 OR cl_abap_typedescr=>typekind_int8
+                         OR cl_abap_typedescr=>typekind_packed OR cl_abap_typedescr=>typekind_float
+                         OR cl_abap_typedescr=>typekind_decfloat16
+                         OR cl_abap_typedescr=>typekind_decfloat34
+                       THEN is_number( filter_value )
+                       WHEN cl_abap_typedescr=>typekind_num
+                       THEN xsdbool( condense( filter_value ) CO digits )
+                       ELSE abap_true ).
+  ENDMETHOD.
+
+
+  METHOD is_number.
+    DATA number TYPE decfloat34 ##NEEDED.
+
+    " The largest number type takes whatever any number column can hold
+    TRY.
+        number = text.
+        result = abap_true.
+      CATCH cx_sy_conversion_error.
+        result = abap_false.
+    ENDTRY.
+  ENDMETHOD.
+
+
   METHOD check_popup.
     " SAP shows inverted or missing coordinates as a tiny box nobody can use
     IF output = output_modes-popup
@@ -1751,9 +1992,16 @@ CLASS ZCL_SALVAGE IMPLEMENTATION.
     IF color_column IS NOT INITIAL AND is_color_table( column_type( color_column ) ) = abap_false.
       raise_color_column_error( ).
     ENDIF.
-    IF light_column IS NOT INITIAL AND is_light_field( column_type( light_column ) ) = abap_false.
+    IF light_column IS NOT INITIAL AND is_one_char_field( column_type( light_column ) ) = abap_false.
       raise_light_column_error( ).
     ENDIF.
+    " SALV shows a checkbox for any column; only a character field of length 1 holds abap_true
+    " and abap_false
+    LOOP AT changed_columns INTO DATA(change) WHERE settings-is_checkbox = abap_true.
+      IF is_one_char_field( column_type( change-name ) ) = abap_false.
+        RAISE EXCEPTION TYPE zcx_salvage_error MESSAGE e025(zsalvage) WITH change-name.
+      ENDIF.
+    ENDLOOP.
   ENDMETHOD.
 
 
@@ -1797,10 +2045,10 @@ CLASS ZCL_SALVAGE IMPLEMENTATION.
   ENDMETHOD.
 
 
-  METHOD is_light_field.
+  METHOD is_one_char_field.
     result = xsdbool( descriptor IS INSTANCE OF cl_abap_elemdescr
                       AND descriptor->type_kind = cl_abap_typedescr=>typekind_char
-                      AND CAST cl_abap_elemdescr( descriptor )->output_length = light_field_length ).
+                      AND CAST cl_abap_elemdescr( descriptor )->output_length = one_char_length ).
   ENDMETHOD.
 
 
@@ -1834,11 +2082,13 @@ CLASS ZCL_SALVAGE IMPLEMENTATION.
 
   METHOD prepare.
     " Everything DISPLAY does before the screen, so the unit tests can run it without a GUI
-    IF in_background = abap_true AND output = output_modes-container.
-      " A container needs SAP GUI. In a background job the list goes to the spool in full
-      " screen instead, where nobody can click an own button
-      output = output_modes-fullscreen.
+    IF in_background = abap_true.
+      " In a background job the list goes to the spool, where nobody can click an own button. A
+      " container needs SAP GUI, so its list is shown in full screen instead
       CLEAR buttons.
+      IF output = output_modes-container.
+        output = output_modes-fullscreen.
+      ENDIF.
     ENDIF.
     check_configuration( ).
     " From here on SALV is a new one, which was not shown yet
@@ -1850,7 +2100,7 @@ CLASS ZCL_SALVAGE IMPLEMENTATION.
 
   METHOD selected_cells.
     IF is_displayed = abap_true.
-      DATA(cells) = salv->get_selections( )->get_selected_cells( ).
+      DATA(cells) = current_selections( )->get_selected_cells( ).
       " Cells of total and subtotal lines come as row 0 or below, which is no row of the table
       result = VALUE #( FOR cell IN cells WHERE ( row > 0 )
                         ( row    = cell-row
@@ -1870,41 +2120,41 @@ CLASS ZCL_SALVAGE IMPLEMENTATION.
 
 
   METHOD check_fixed_units.
-    " With a fixed value and a reference column for one column, SALV would show only one of them
+    " A column is a quantity or an amount, with a fixed unit or currency or with a column that
+    " holds it. Of two of these SALV would show only one
     LOOP AT changed_columns INTO DATA(change).
-      DATA(has_two_units) = xsdbool( change-settings-unit IS NOT INITIAL
-                                     AND has_unit_column( change-name ) = abap_true ).
-      DATA(has_two_currencies) = xsdbool( change-settings-currency IS NOT INITIAL
-                                          AND has_currency_column( change-name ) = abap_true ).
-      IF has_two_units = abap_true OR has_two_currencies = abap_true.
+      IF unit_setting_count( change-name ) > unit_settings_per_column.
         RAISE EXCEPTION TYPE zcx_salvage_error MESSAGE e020(zsalvage) WITH change-name.
       ENDIF.
     ENDLOOP.
   ENDMETHOD.
 
 
+  METHOD unit_setting_count.
+    DATA has_unit            TYPE abap_bool.
+    DATA has_unit_column     TYPE abap_bool.
+    DATA has_currency        TYPE abap_bool.
+    DATA has_currency_column TYPE abap_bool.
+
+    " Settings of one column can come from several calls of COLUMN
+    LOOP AT changed_columns INTO DATA(change) WHERE name = column_name.
+      has_unit = xsdbool( has_unit = abap_true OR change-settings-unit IS NOT INITIAL ).
+      has_unit_column = xsdbool( has_unit_column = abap_true
+                                 OR change-settings-unit_column IS NOT INITIAL ).
+      has_currency = xsdbool( has_currency = abap_true OR change-settings-currency IS NOT INITIAL ).
+      has_currency_column = xsdbool( has_currency_column = abap_true
+                                     OR change-settings-currency_column IS NOT INITIAL ).
+    ENDLOOP.
+    result = COND i( WHEN has_unit = abap_true THEN 1 )
+           + COND i( WHEN has_unit_column = abap_true THEN 1 )
+           + COND i( WHEN has_currency = abap_true THEN 1 )
+           + COND i( WHEN has_currency_column = abap_true THEN 1 ).
+  ENDMETHOD.
+
+
   METHOD fixed_key_columns.
     fixes_key_columns = abap_true.
     self = me.
-  ENDMETHOD.
-
-
-  METHOD has_currency_column.
-    LOOP AT changed_columns TRANSPORTING NO FIELDS
-         WHERE name = column_name AND settings-currency_column IS NOT INITIAL.
-      result = abap_true.
-      RETURN.
-    ENDLOOP.
-  ENDMETHOD.
-
-
-  METHOD has_unit_column.
-    " Settings of one column can come from several calls of COLUMN
-    LOOP AT changed_columns TRANSPORTING NO FIELDS
-         WHERE name = column_name AND settings-unit_column IS NOT INITIAL.
-      result = abap_true.
-      RETURN.
-    ENDLOOP.
   ENDMETHOD.
 
 
@@ -1945,8 +2195,19 @@ CLASS ZCL_SALVAGE IMPLEMENTATION.
 
   METHOD selected_columns.
     IF is_displayed = abap_true.
-      result = salv->get_selections( )->get_selected_columns( ).
+      result = current_selections( )->get_selected_columns( ).
     ENDIF.
+  ENDMETHOD.
+
+
+  METHOD current_selections.
+    " Outside its own events SALV does not always know what the user selected since the last
+    " round trip, above all in a container, so the state of the front end is fetched first. A
+    " list the user has left has no front end any more
+    IF is_open = abap_true.
+      salv->get_metadata( ).
+    ENDIF.
+    result = salv->get_selections( ).
   ENDMETHOD.
 
 
