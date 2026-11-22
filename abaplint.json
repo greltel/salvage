@@ -440,10 +440,6 @@
           "replace": "use CL_GUI_FRONTEND_SERVICES"
         },
         {
-          "name": "FUNCTION_EXISTS",
-          "replace": "surround with try-catch CX_SY_DYN_CALL_ILLEGAL_METHOD instead"
-        },
-        {
           "name": "GUI_CREATE_DIRECTORY",
           "replace": "use CL_GUI_FRONTEND_SERVICES"
         },

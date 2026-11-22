@@ -158,6 +158,12 @@
      <MSGNR>025</MSGNR>
      <TEXT>Column &amp;1 cannot show checkboxes: it must be of type C length 1</TEXT>
     </T100>
+    <T100>
+     <SPRSL>E</SPRSL>
+     <ARBGB>ZSALVAGE</ARBGB>
+     <MSGNR>026</MSGNR>
+     <TEXT>Column &amp;1: function module &amp;2 of the edit mask does not exist</TEXT>
+    </T100>
    </T100>
   </asx:values>
  </asx:abap>

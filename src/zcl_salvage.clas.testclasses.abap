@@ -92,6 +92,7 @@ CLASS ltc_salvage DEFINITION FINAL FOR TESTING RISK LEVEL HARMLESS DURATION SHOR
         filter_value      TYPE symsgno VALUE '023',
         missing_status    TYPE symsgno VALUE '024',
         checkbox_column   TYPE symsgno VALUE '025',
+        missing_exit      TYPE symsgno VALUE '026',
       END OF messages.
 
     CONSTANTS:
@@ -128,7 +129,13 @@ CLASS ltc_salvage DEFINITION FINAL FOR TESTING RISK LEVEL HARMLESS DURATION SHOR
         program TYPE syrepid    VALUE 'ZSALVAGE_SHARED_LIST',
       END OF layout_values.
 
+    " Conversion exit ALPHA exists in every system; no system has a function module
+    " CONVERSION_EXIT_ZZZZZ_OUTPUT. A template may hold text in lower case
     CONSTANTS alpha_mask TYPE lvc_edtmsk VALUE '==ALPHA'.
+    CONSTANTS lower_alpha_mask TYPE lvc_edtmsk VALUE '==alpha'.
+    CONSTANTS missing_exit_mask TYPE lvc_edtmsk VALUE '==ZZZZZ'.
+    CONSTANTS long_exit_mask TYPE lvc_edtmsk VALUE '==ALPHA_OUTPUT_AND_SOME_MORE_TEXT'.
+    CONSTANTS template_mask TYPE lvc_edtmsk VALUE '___ pcs'.
 
     CONSTANTS:
       BEGIN OF fixed_values,
@@ -305,6 +312,10 @@ CLASS ltc_salvage DEFINITION FINAL FOR TESTING RISK LEVEL HARMLESS DURATION SHOR
     METHODS when_name_only_then_name_text  FOR TESTING.
     METHODS when_icon_only_then_no_text    FOR TESTING.
     METHODS when_batch_then_no_buttons     FOR TESTING.
+    METHODS when_missing_exit_then_raises  FOR TESTING.
+    METHODS when_long_exit_then_raises     FOR TESTING.
+    METHODS when_lower_exit_then_upper     FOR TESTING RAISING cx_static_check.
+    METHODS when_template_mask_then_kept   FOR TESTING RAISING cx_static_check.
 
     METHODS when_hashed_table_then_raises  FOR TESTING.
     METHODS when_structure_ref_then_raises FOR TESTING.
@@ -1871,6 +1882,56 @@ CLASS ltc_salvage IMPLEMENTATION.
                                          msg = `A list with own buttons in a background job must not be rejected` ).
     cl_abap_unit_assert=>assert_initial( act = list->buttons
                                          msg = `In a background job a list must have no own buttons` ).
+  ENDMETHOD.
+
+  METHOD when_missing_exit_then_raises.
+    " Given a conversion exit that has no function module
+    DATA(list) = new_list( )->column( name     = columns-airline
+                                      settings = VALUE #( edit_mask = missing_exit_mask ) ).
+    " When
+    DATA(message) = rejection_of( list ).
+    " Then
+    cl_abap_unit_assert=>assert_equals( act = message
+                                        exp = messages-missing_exit
+                                        msg = `A conversion exit without function module must be rejected` ).
+  ENDMETHOD.
+
+  METHOD when_long_exit_then_raises.
+    " Given a name that starts like the exit ALPHA but is longer than a function module name
+    DATA(list) = new_list( )->column( name     = columns-airline
+                                      settings = VALUE #( edit_mask = long_exit_mask ) ).
+    " When
+    DATA(message) = rejection_of( list ).
+    " Then
+    cl_abap_unit_assert=>assert_equals( act = message
+                                        exp = messages-missing_exit
+                                        msg = `An exit name that is too long must not be cut to one that exists` ).
+  ENDMETHOD.
+
+  METHOD when_lower_exit_then_upper.
+    " Given
+    DATA(list) = new_list( )->column( name     = columns-airline
+                                      settings = VALUE #( edit_mask = lower_alpha_mask ) ).
+    " When
+    list->prepare( ).
+    " Then
+    cl_abap_unit_assert=>assert_equals( act = column_of( list = list
+                                                         name = columns-airline )->get_edit_mask( )
+                                        exp = alpha_mask
+                                        msg = `The name of a conversion exit must reach SALV in upper case` ).
+  ENDMETHOD.
+
+  METHOD when_template_mask_then_kept.
+    " Given a template, which names no conversion exit
+    DATA(list) = new_list( )->column( name     = columns-airline
+                                      settings = VALUE #( edit_mask = template_mask ) ).
+    " When
+    list->prepare( ).
+    " Then
+    cl_abap_unit_assert=>assert_equals( act = column_of( list = list
+                                                         name = columns-airline )->get_edit_mask( )
+                                        exp = template_mask
+                                        msg = `A template must reach SALV as it was written` ).
   ENDMETHOD.
 
   METHOD when_hashed_table_then_raises.

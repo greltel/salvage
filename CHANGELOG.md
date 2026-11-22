@@ -6,6 +6,28 @@ All notable changes to SALVage are documented here. The format follows
 
 ## [Unreleased]
 
+### Added
+
+- Message `ZSALVAGE 026` "Column &1: function module &2 of the edit mask does not exist". See
+  Fixed.
+- 4 unit tests (127 in all): a conversion exit without function module, an exit name that is too
+  long for a function module, an exit name in lower case, and a template mask. The tests with
+  a conversion exit look it up in the function library of the system, as the class does: the
+  test double for function modules (`CL_FUNCTION_TEST_ENVIRONMENT`) exists from ABAP 7.56 only.
+
+### Changed
+
+- `column_settings-edit_mask`: the name of a conversion exit goes to SALV in upper case, so
+  `==alpha` is passed as `==ALPHA`. A template such as `__:__` is passed as written.
+
+### Fixed
+
+- An `edit_mask` with a conversion exit that the system does not have, such as `==ZZZZZ`, ended
+  in runtime error `CALL_FUNCTION_NOT_FOUND` when ALV showed the list (seen on SAP S/4HANA 2023
+  FPS03, full screen): ALV calls function module `CONVERSION_EXIT_..._OUTPUT` for the cells and
+  catches nothing. `display( )` now looks the function module up with `FUNCTION_EXISTS` and
+  raises message 026.
+
 ## [1.6.0] - 2026-11-22
 
 Minor release: new options for sorting, layouts and the selection, a list that can be displayed
