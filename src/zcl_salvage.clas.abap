@@ -56,7 +56,9 @@ CLASS zcl_salvage DEFINITION
         "! currency column, see unit_column. It also replaces a currency column that the ABAP
         "! Dictionary defines for the column; that column keeps showing its own values.
         currency        TYPE lvc_curr,
-        "! Output format: ==ALPHA for the conversion exit ALPHA, or a mask such as __:__
+        "! Output format: ==ALPHA for the conversion exit ALPHA, or a template such as __:__.
+        "! The name of a conversion exit goes to SALV in upper case; an exit without its function
+        "! module CONVERSION_EXIT_..._OUTPUT raises message 026
         edit_mask       TYPE lvc_edtmsk,
         "! Colour of the whole column, for example VALUE #( col = col_positive ) with the
         "! constants of type pool COL
@@ -493,7 +495,8 @@ CLASS zcl_salvage DEFINITION
     "!                              a colour, light or checkbox column of the wrong type, too
     "!                              many buttons, impossible dialog box coordinates, a container
     "!                              that is missing, more than one unit or currency setting for
-    "!                              a column, a GUI status of the own buttons that is missing;
+    "!                              a column, a GUI status of the own buttons that is missing,
+    "!                              an edit mask with a conversion exit that does not exist;
     "!                              or the list is on the screen already. The message of class
     "!                              ZSALVAGE says which; nothing is shown
     METHODS display
@@ -657,6 +660,15 @@ CLASS zcl_salvage DEFINITION
     " Traffic lights and checkboxes come from a character field of this length
     CONSTANTS one_char_length TYPE i VALUE 1.
 
+    " An edit mask with this prefix names a conversion exit: for ==ALPHA the list calls function
+    " module CONVERSION_EXIT_ALPHA_OUTPUT when it formats the cells of the column
+    CONSTANTS:
+      BEGIN OF exit_masks,
+        prefix          TYPE string VALUE `==`,
+        function_prefix TYPE string VALUE `CONVERSION_EXIT_`,
+        function_suffix TYPE string VALUE `_OUTPUT`,
+      END OF exit_masks.
+
     " Screen columns and lines are counted from 1
     CONSTANTS first_screen_position TYPE i VALUE 1.
 
@@ -741,6 +753,25 @@ CLASS zcl_salvage DEFINITION
 
     METHODS check_fixed_units
       RAISING zcx_salvage_error.
+
+    METHODS check_edit_masks
+      RAISING zcx_salvage_error.
+
+    METHODS is_exit_mask
+      IMPORTING edit_mask     TYPE lvc_edtmsk
+      RETURNING VALUE(result) TYPE abap_bool.
+
+    METHODS exit_function_of
+      IMPORTING edit_mask     TYPE lvc_edtmsk
+      RETURNING VALUE(result) TYPE string.
+
+    METHODS is_function_module
+      IMPORTING name          TYPE string
+      RETURNING VALUE(result) TYPE abap_bool.
+
+    METHODS salv_edit_mask
+      IMPORTING edit_mask     TYPE lvc_edtmsk
+      RETURNING VALUE(result) TYPE lvc_edtmsk.
 
     METHODS unit_setting_count
       IMPORTING column_name   TYPE lvc_fname
@@ -1164,6 +1195,7 @@ CLASS ZCL_SALVAGE IMPLEMENTATION.
     check_totals( ).
     check_special_columns( ).
     check_fixed_units( ).
+    check_edit_masks( ).
     check_popup( ).
   ENDMETHOD.
 
@@ -1469,7 +1501,7 @@ CLASS ZCL_SALVAGE IMPLEMENTATION.
       column->set_zero( abap_false ).
     ENDIF.
     IF settings-edit_mask IS NOT INITIAL.
-      column->set_edit_mask( settings-edit_mask ).
+      column->set_edit_mask( salv_edit_mask( settings-edit_mask ) ).
     ENDIF.
     IF settings-color IS NOT INITIAL.
       column->set_color( settings-color ).
@@ -2127,6 +2159,66 @@ CLASS ZCL_SALVAGE IMPLEMENTATION.
         RAISE EXCEPTION TYPE zcx_salvage_error MESSAGE e020(zsalvage) WITH change-name.
       ENDIF.
     ENDLOOP.
+  ENDMETHOD.
+
+
+  METHOD check_edit_masks.
+    " ALV calls the conversion exit of an edit mask when it formats the cells. Without the
+    " function module of the exit the list ends in runtime error CALL_FUNCTION_NOT_FOUND
+    " (seen on SAP S/4HANA 2023), which no caller can catch
+    LOOP AT changed_columns INTO DATA(change) WHERE settings-edit_mask IS NOT INITIAL.
+      DATA(exit_function) = exit_function_of( change-settings-edit_mask ).
+      IF exit_function IS NOT INITIAL AND is_function_module( exit_function ) = abap_false.
+        RAISE EXCEPTION TYPE zcx_salvage_error MESSAGE e026(zsalvage)
+          WITH change-name exit_function.
+      ENDIF.
+    ENDLOOP.
+  ENDMETHOD.
+
+
+  METHOD is_exit_mask.
+    " The prefix stands at the start of the mask, at offset 0
+    result = xsdbool( find( val = edit_mask
+                            sub = exit_masks-prefix ) = 0 ).
+  ENDMETHOD.
+
+
+  METHOD exit_function_of.
+    " A mask without the prefix is a template such as __:__ and calls no function module
+    IF is_exit_mask( edit_mask ) = abap_true.
+      result = exit_masks-function_prefix
+            && to_upper( substring_after( val = condense( edit_mask )
+                                          sub = exit_masks-prefix ) )
+            && exit_masks-function_suffix.
+    ENDIF.
+  ENDMETHOD.
+
+
+  METHOD is_function_module.
+    DATA function_name TYPE rs38l_fnam.
+
+    " A name that is too long for a function module is none; cut off, it could name another
+    " function module that exists
+    function_name = name.
+    IF function_name <> name.
+      RETURN.
+    ENDIF.
+    CALL FUNCTION 'FUNCTION_EXISTS'
+      EXPORTING
+        funcname           = function_name
+      EXCEPTIONS
+        function_not_exist = 1
+        OTHERS             = 2.
+    result = xsdbool( sy-subrc = 0 ).
+  ENDMETHOD.
+
+
+  METHOD salv_edit_mask.
+    " The name of a conversion exit is part of the name of a function module, which is in upper
+    " case; the text of a template stays as the caller wrote it
+    result = COND #( WHEN is_exit_mask( edit_mask ) = abap_true
+                     THEN to_upper( edit_mask )
+                     ELSE edit_mask ).
   ENDMETHOD.
 
 

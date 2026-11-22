@@ -242,6 +242,12 @@ currencies.
 `is_checkbox` shows `abap_true` and `abap_false` as a checkbox. It needs a column of type C
 length 1, such as `abap_bool`; any other type raises message 025.
 
+`edit_mask` takes a conversion exit as `==` plus its name, or a template such as `__:__`. For a
+conversion exit `display( )` checks that its function module exists, for example
+`CONVERSION_EXIT_MATN1_OUTPUT` for `==MATN1`, and raises message 026 when it does not: ALV would
+end in runtime error `CALL_FUNCTION_NOT_FOUND` when it shows the list. The name of the exit goes
+to SALV in upper case; a template stays as written.
+
 `fixed_key_columns( )` keeps the key columns in place when users scroll to the right: the
 columns with `is_key` and, for a line type from the ABAP Dictionary, its key fields.
 
@@ -664,8 +670,9 @@ Version: `zcl_salvage=>version`, the installed version as `major.minor.patch`, f
 | 023 | Filter value &1 of column &2 must be a number in internal format |
 | 024 | GUI status &1 of program &2 is missing; pull the program with abapGit |
 | 025 | Column &1 cannot show checkboxes: it must be of type C length 1 |
+| 026 | Column &1: function module &2 of the edit mask does not exist |
 
-Messages 001 to 020 and 022 to 025 come with `ZCX_SALVAGE_ERROR`. Message 021 is for reports: they
+Messages 001 to 020 and 022 to 026 come with `ZCX_SALVAGE_ERROR`. Message 021 is for reports: they
 send it when `layout_exists( )` returns `abap_false`, see [Layouts](#layouts).
 
 ## How it works
@@ -710,7 +717,7 @@ send it when `layout_exists( )` returns `abap_false`, see [Layouts](#layouts).
   English only.
 - **Testable without a screen.** `display( )` runs the private method `prepare( )` - check the
   configuration, create the `CL_SALV_TABLE`, apply the settings - and only then shows the list. The
-  unit tests in the class (`ltc_salvage`, about 120 tests) call `prepare( )` directly and check
+  unit tests in the class (`ltc_salvage`, about 130 tests) call `prepare( )` directly and check
   the configuration errors, the settings handed to SALV, the button slots of the GUI status and
   the events passed on to the handler.
 - **No copies.** The ALV gets your table by reference, so even large tables cost no extra memory
@@ -777,6 +784,7 @@ discussed in an issue first.
 | Symptom | Cause | Fix |
 |---|---|---|
 | Message `ZSALVAGE 024`, "GUI status SALVAGE_FULLSCREEN of program ZSALVAGE_GUI is missing", for a full screen list with own buttons; up to release 1.5.0 a dump `CX_SALV_OBJECT_NOT_FOUND` | Program `ZSALVAGE_GUI` exists without its GUI status, for example because it was created by hand or its transport was incomplete | Pull `ZSALVAGE_GUI` again with abapGit; transaction SE41 must then show status `SALVAGE_FULLSCREEN` with the functions `SALVAGE01` to `SALVAGE10` |
+| Message `ZSALVAGE 026`, "function module CONVERSION_EXIT_..._OUTPUT of the edit mask does not exist"; up to release 1.6.0 a dump `CALL_FUNCTION_NOT_FOUND` when the list is shown | The `edit_mask` of a column names a conversion exit that the system does not have, for example a typing mistake or an exit of a component that is not installed | Correct the name after `==`; transaction SE37 shows the function modules `CONVERSION_EXIT_*_OUTPUT` |
 | Runtime error `MOVE_TO_LIT_NOTALLOWED_NODATA` when the list sorts | The table passed to `create( )` is write-protected, for example an `IMPORTING` parameter or a constant | Pass a reference to a variable, for example a copy of the parameter (see [Quick start](#quick-start)) |
 | The main list opens with columns hidden that the user never hid there | Two lists of the program share their layouts, and a default layout saved in the other list is applied | Give each list its own `handle` in `layout( )` |
 | Amounts in JPY or KRW 100 times too small, or a total that adds up different currencies | The line type is declared in the report, so SALV does not know which column holds the currency | Give the column its `currency_column`, or a fixed `currency` when all rows have the same (see [Columns](#columns)) |
@@ -835,6 +843,7 @@ the result of the unit tests. Before you open one:
 | `use_message_class` | demos excluded | The demos show exception texts with `MESSAGE error TYPE ...`, which the rule cannot tell from a text message |
 | `local_class_naming` | test classes `LTC_`, `LTD_`, `LTH_` | The unit test classes follow the `ltc_` / `ltd_` / `lth_` naming of the project instead of abaplint's default `LTCL_` |
 | `no_dynamic_stuff` | `assign` off | `hide_empty_columns( )` reads the cells of the generic table with `ASSIGN COMPONENT`; the component names come from SALV, not from user input |
+| `function_module_recommendations` | `FUNCTION_EXISTS` taken off the list | The rule advises to call the function module and catch the exception instead; the conversion exit of an edit mask is called by ALV, not by `ZCL_SALVAGE`, which can only look it up before |
 | `unused_variables` | skips `previous` | abaplint's stub of `CX_ROOT` has no constructor, so the `previous` parameter of the exception constructor looks unused |
 
 ### Releases
