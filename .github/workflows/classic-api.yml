@@ -28,7 +28,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - name: Get the API classifications of SAP's Cloudification Repository
         run: |
           base=https://raw.githubusercontent.com/SAP/abap-atc-cr-cv-s4hc/main/src
