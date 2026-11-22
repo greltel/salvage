@@ -6,10 +6,12 @@ All notable changes to SALVage are documented here. The format follows
 
 ## [Unreleased]
 
-New options for sorting, layouts and the selection, a list that can be displayed again after
-the user left it, a check of the SAP objects in the GitHub workflow, and the results of a review
-of the class: configuration mistakes that ended in a runtime error or in a wrong list get a
-message. Existing calls do not change, except for what was a mistake before: see Changed.
+## [1.6.0] - 2026-11-22
+
+Minor release: new options for sorting, layouts and the selection, a list that can be displayed
+again after the user left it, a check of the SAP objects in the GitHub workflow, and the results
+of a review of the class: configuration mistakes that ended in a runtime error or in a wrong list
+get a message. Existing calls do not change, except for what was a mistake before: see Changed.
 
 ### Added
 

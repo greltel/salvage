@@ -210,7 +210,7 @@ CLASS zcl_salvage DEFINITION
 
     "! Version of SALVage in this system, as major.minor.patch of semantic versioning. It
     "! matches the release tag on GitHub without the leading v; quote it when you report an issue.
-    CONSTANTS version TYPE string VALUE `1.5.0`.
+    CONSTANTS version TYPE string VALUE `1.6.0`.
 
     "! Technical, not for use in reports: the texts of the own buttons of the fullscreen list
     "! that is shown right now. GUI status SALVAGE_FULLSCREEN of program ZSALVAGE_GUI reads them
