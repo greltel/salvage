@@ -126,7 +126,7 @@
      <SPRSL>E</SPRSL>
      <ARBGB>ZSALVAGE</ARBGB>
      <MSGNR>020</MSGNR>
-     <TEXT>Column &amp;1 has a fixed unit or currency and a reference column; give one</TEXT>
+     <TEXT>Column &amp;1: give only one of UNIT, UNIT_COLUMN, CURRENCY, CURRENCY_COLUMN</TEXT>
     </T100>
     <T100>
      <SPRSL>E</SPRSL>
@@ -139,6 +139,24 @@
      <ARBGB>ZSALVAGE</ARBGB>
      <MSGNR>022</MSGNR>
      <TEXT>A button needs a name; the name passed to BUTTON is initial</TEXT>
+    </T100>
+    <T100>
+     <SPRSL>E</SPRSL>
+     <ARBGB>ZSALVAGE</ARBGB>
+     <MSGNR>023</MSGNR>
+     <TEXT>Filter value &amp;1 of column &amp;2 must be a number in internal format</TEXT>
+    </T100>
+    <T100>
+     <SPRSL>E</SPRSL>
+     <ARBGB>ZSALVAGE</ARBGB>
+     <MSGNR>024</MSGNR>
+     <TEXT>GUI status &amp;1 of program &amp;2 is missing; pull the program with abapGit</TEXT>
+    </T100>
+    <T100>
+     <SPRSL>E</SPRSL>
+     <ARBGB>ZSALVAGE</ARBGB>
+     <MSGNR>025</MSGNR>
+     <TEXT>Column &amp;1 cannot show checkboxes: it must be of type C length 1</TEXT>
     </T100>
    </T100>
   </asx:values>

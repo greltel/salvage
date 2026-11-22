@@ -47,13 +47,16 @@ CLASS ltc_salvage DEFINITION FINAL FOR TESTING RISK LEVEL HARMLESS DURATION SHOR
         light    TYPE c LENGTH 1,
         colors   TYPE lvc_t_scol,
         remark   TYPE c LENGTH 20,
+        picked   TYPE abap_bool,
       END OF flight.
     TYPES flight_rows TYPE STANDARD TABLE OF flight WITH EMPTY KEY.
     TYPES sorted_flights TYPE SORTED TABLE OF flight WITH UNIQUE KEY carrid connid.
+    TYPES hashed_flights TYPE HASHED TABLE OF flight WITH UNIQUE KEY carrid connid.
 
     CONSTANTS:
       BEGIN OF columns,
         airline  TYPE lvc_fname VALUE 'CARRID',
+        flight   TYPE lvc_fname VALUE 'CONNID',
         price    TYPE lvc_fname VALUE 'PRICE',
         currency TYPE lvc_fname VALUE 'CURRENCY',
         occupied TYPE lvc_fname VALUE 'SEATSOCC',
@@ -61,6 +64,7 @@ CLASS ltc_salvage DEFINITION FINAL FOR TESTING RISK LEVEL HARMLESS DURATION SHOR
         light    TYPE lvc_fname VALUE 'LIGHT',
         colors   TYPE lvc_fname VALUE 'COLORS',
         remark   TYPE lvc_fname VALUE 'REMARK',
+        picked   TYPE lvc_fname VALUE 'PICKED',
         unknown  TYPE lvc_fname VALUE 'NO_SUCH_COLUMN',
       END OF columns.
 
@@ -85,6 +89,9 @@ CLASS ltc_salvage DEFINITION FINAL FOR TESTING RISK LEVEL HARMLESS DURATION SHOR
         popup_size        TYPE symsgno VALUE '019',
         fixed_and_column  TYPE symsgno VALUE '020',
         no_button_name    TYPE symsgno VALUE '022',
+        filter_value      TYPE symsgno VALUE '023',
+        missing_status    TYPE symsgno VALUE '024',
+        checkbox_column   TYPE symsgno VALUE '025',
       END OF messages.
 
     CONSTANTS:
@@ -99,6 +106,12 @@ CLASS ltc_salvage DEFINITION FINAL FOR TESTING RISK LEVEL HARMLESS DURATION SHOR
         second TYPE salv_de_function VALUE 'SALVAGE02',
         third  TYPE salv_de_function VALUE 'SALVAGE03',
       END OF slots.
+
+    " A function code that is no own button, as a user may type it into the command field
+    CONSTANTS typed_code TYPE salv_de_function VALUE 'FOO'.
+
+    " A GUI status that program ZSALVAGE_GUI does not have
+    CONSTANTS no_status TYPE sypfkey VALUE 'NO_SUCH_STATUS'.
 
     " Signs and comparisons of a filter condition
     CONSTANTS:
@@ -271,6 +284,37 @@ CLASS ltc_salvage DEFINITION FINAL FOR TESTING RISK LEVEL HARMLESS DURATION SHOR
     METHODS when_total_click_then_ignored FOR TESTING.
 
     METHODS when_version_then_semantic    FOR TESTING.
+
+    METHODS when_no_number_then_raises     FOR TESTING.
+    METHODS when_bad_high_then_raises      FOR TESTING.
+    METHODS when_numc_letters_then_raises  FOR TESTING.
+    METHODS when_number_filter_then_valid  FOR TESTING.
+    METHODS when_pattern_then_not_checked  FOR TESTING.
+    METHODS when_no_status_then_raises     FOR TESTING.
+    METHODS when_unchecked_box_then_shown  FOR TESTING RAISING cx_static_check.
+    METHODS when_unknown_code_then_ignored FOR TESTING.
+    METHODS when_position_beyond_then_last FOR TESTING RAISING cx_static_check.
+    METHODS when_two_positions_then_both   FOR TESTING RAISING cx_static_check.
+    METHODS when_left_moves_then_both_fit  FOR TESTING RAISING cx_static_check.
+    METHODS when_position_twice_then_last  FOR TESTING RAISING cx_static_check.
+    METHODS when_unit_and_curr_then_raises FOR TESTING.
+    METHODS when_both_ref_cols_then_raises FOR TESTING.
+    METHODS when_wide_checkbox_then_raises FOR TESTING.
+    METHODS when_stale_row_then_ignored    FOR TESTING.
+    METHODS when_no_text_icon_then_tooltip FOR TESTING.
+    METHODS when_name_only_then_name_text  FOR TESTING.
+    METHODS when_icon_only_then_no_text    FOR TESTING.
+    METHODS when_batch_then_no_buttons     FOR TESTING.
+
+    METHODS when_hashed_table_then_raises  FOR TESTING.
+    METHODS when_structure_ref_then_raises FOR TESTING.
+    METHODS when_bad_total_col_then_raises FOR TESTING.
+    METHODS when_unknown_light_then_raises FOR TESTING.
+    METHODS when_total_twice_then_raises   FOR TESTING.
+    METHODS when_lower_option_then_valid   FOR TESTING RAISING cx_static_check.
+    METHODS when_buttons_then_ten_slots    FOR TESTING.
+    METHODS when_late_handler_then_no_dump FOR TESTING.
+    METHODS when_lower_program_then_upper  FOR TESTING.
 ENDCLASS.
 
 
@@ -294,6 +338,8 @@ CLASS ltc_salvage IMPLEMENTATION.
 
   METHOD new_list.
     result = zcl_salvage=>create( REF #( flights ) ).
+    " ABAP Unit may run in a background job, where a list has no own buttons and no container
+    result->in_background = abap_false.
   ENDMETHOD.
 
   METHOD two_button_list.
@@ -616,19 +662,20 @@ CLASS ltc_salvage IMPLEMENTATION.
   ENDMETHOD.
 
   METHOD when_text_then_all_headers.
-    " Given
+    " Given a text that is longer than a short header
+    DATA(header) = `Airline of the flight`.
     DATA(list) = new_list( )->column( name     = columns-airline
-                                      settings = VALUE #( text = `Airline of the flight` ) ).
+                                      settings = VALUE #( text = header ) ).
     " When
     list->prepare( ).
     " Then
     DATA(column) = column_of( list = list
                               name = columns-airline ).
     cl_abap_unit_assert=>assert_equals( act = column->get_long_text( )
-                                        exp = CONV scrtext_l( `Airline of the flight` )
+                                        exp = CONV scrtext_l( header )
                                         msg = `The text must be the long header` ).
     cl_abap_unit_assert=>assert_equals( act = column->get_short_text( )
-                                        exp = CONV scrtext_s( `Airline of the flight` )
+                                        exp = CONV scrtext_s( header )
                                         msg = `The text, cut to 10 characters, must be the short header` ).
   ENDMETHOD.
 
@@ -1559,5 +1606,382 @@ CLASS ltc_salvage IMPLEMENTATION.
     " Then
     cl_abap_unit_assert=>assert_initial( act = message
                                          msg = `Rows selected before DISPLAY must not be rejected` ).
+  ENDMETHOD.
+
+  METHOD when_no_number_then_raises.
+    " Given a filter on a number column with a value that is no number
+    DATA(list) = new_list( )->filter_by( name     = columns-occupied
+                                         settings = VALUE #( option = 'GT'
+                                                             low    = 'ABC' ) ).
+    " When
+    DATA(message) = rejection_of( list ).
+    " Then
+    cl_abap_unit_assert=>assert_equals( act = message
+                                        exp = messages-filter_value
+                                        msg = `Text as filter value of a number column must be rejected` ).
+  ENDMETHOD.
+
+  METHOD when_bad_high_then_raises.
+    " Given a range whose upper value has a decimal comma
+    DATA(list) = new_list( )->filter_by( name     = columns-load
+                                         settings = VALUE #( option = between-option
+                                                             low    = '10'
+                                                             high   = '12,5' ) ).
+    " When
+    DATA(message) = rejection_of( list ).
+    " Then
+    cl_abap_unit_assert=>assert_equals( act = message
+                                        exp = messages-filter_value
+                                        msg = `An upper value that is no number must be rejected` ).
+  ENDMETHOD.
+
+  METHOD when_numc_letters_then_raises.
+    " Given a filter on CONNID, a column of type N
+    DATA(list) = new_list( )->filter_by( name     = columns-flight
+                                         settings = VALUE #( low = '04A0' ) ).
+    " When
+    DATA(message) = rejection_of( list ).
+    " Then
+    cl_abap_unit_assert=>assert_equals( act = message
+                                        exp = messages-filter_value
+                                        msg = `A letter in the filter value of a column of type N must be rejected` ).
+  ENDMETHOD.
+
+  METHOD when_number_filter_then_valid.
+    " Given a number as filter value, and no upper value
+    DATA(list) = new_list( )->filter_by( name     = columns-occupied
+                                         settings = VALUE #( option = 'GT'
+                                                             low    = '100' ) ).
+    " When
+    DATA(message) = rejection_of( list ).
+    " Then
+    cl_abap_unit_assert=>assert_initial( act = message
+                                         msg = `A number as filter value must not be rejected` ).
+  ENDMETHOD.
+
+  METHOD when_pattern_then_not_checked.
+    " Given a pattern for a number column, in lower case
+    DATA(list) = new_list( )->filter_by( name     = columns-occupied
+                                         settings = VALUE #( option = 'cp'
+                                                             low    = '1*' ) ).
+    " When only the values are checked; what SALV does with the pattern is not the point here
+    TRY.
+        list->check_filter_values( ).
+      CATCH zcx_salvage_error.
+        " Then
+        cl_abap_unit_assert=>fail( msg = `The pattern of a CP comparison must not be checked as a number` ).
+    ENDTRY.
+  ENDMETHOD.
+
+  METHOD when_no_status_then_raises.
+    " Given a full screen list with own buttons, and a GUI status that does not exist
+    DATA(list) = two_button_list( ).
+    list->fullscreen_status = no_status.
+    " When
+    DATA(message) = rejection_of( list ).
+    " Then
+    cl_abap_unit_assert=>assert_equals( act = message
+                                        exp = messages-missing_status
+                                        msg = `A missing GUI status must be reported with a message, not a dump` ).
+  ENDMETHOD.
+
+  METHOD when_unchecked_box_then_shown.
+    " Given PICKED, a checkbox that is ticked in no row
+    DATA(list) = new_list( )->hide_empty_columns( )->column( name     = columns-picked
+                                                             settings = VALUE #( is_checkbox = abap_true ) ).
+    " When
+    list->prepare( ).
+    " Then
+    cl_abap_unit_assert=>assert_true( act = column_of( list = list
+                                                       name = columns-picked )->is_visible( )
+                                      msg = `A checkbox column without a tick must not be hidden as empty` ).
+  ENDMETHOD.
+
+  METHOD when_unknown_code_then_ignored.
+    " Given a full screen list with two own buttons
+    DATA(handler) = NEW ltd_handler( ).
+    DATA(list) = two_button_list( )->handled_by( handler ).
+    " When SALV reports a code that is no own button, and the function of an unused slot
+    list->on_salv_added_function( typed_code ).
+    list->on_salv_added_function( slots-third ).
+    " Then
+    cl_abap_unit_assert=>assert_initial( act = handler->button
+                                         msg = `A function code that is no own button must not reach the handler` ).
+  ENDMETHOD.
+
+  METHOD when_position_beyond_then_last.
+    " Given a position after the last column
+    DATA(list) = new_list( )->column( name     = columns-price
+                                      settings = VALUE #( position = 99 ) ).
+    " When
+    list->prepare( ).
+    " Then
+    DATA(columns_of_list) = list->salv->get_columns( ).
+    cl_abap_unit_assert=>assert_equals( act = columns_of_list->get_column_position( columns-price )
+                                        exp = lines( columns_of_list->get( ) )
+                                        msg = `A position after the last column must be the last one` ).
+  ENDMETHOD.
+
+  METHOD when_two_positions_then_both.
+    " Given the second position before the first
+    DATA(list) = new_list( )->column( name     = columns-remark
+                                      settings = VALUE #( position = 2 )
+                           )->column( name     = columns-price
+                                      settings = VALUE #( position = 1 ) ).
+    " When
+    list->prepare( ).
+    " Then
+    DATA(columns_of_list) = list->salv->get_columns( ).
+    cl_abap_unit_assert=>assert_equals( act = columns_of_list->get_column_position( columns-price )
+                                        exp = 1
+                                        msg = `PRICE must be the first column` ).
+    cl_abap_unit_assert=>assert_equals( act = columns_of_list->get_column_position( columns-remark )
+                                        exp = 2
+                                        msg = `REMARK must stay the second column, whatever the order of the calls` ).
+  ENDMETHOD.
+
+  METHOD when_left_moves_then_both_fit.
+    " Given CARRID, the first column, moved to the right of another column with a position
+    DATA(list) = new_list( )->column( name     = columns-airline
+                                      settings = VALUE #( position = 4 )
+                           )->column( name     = columns-price
+                                      settings = VALUE #( position = 2 ) ).
+    " When
+    list->prepare( ).
+    " Then
+    DATA(columns_of_list) = list->salv->get_columns( ).
+    cl_abap_unit_assert=>assert_equals( act = columns_of_list->get_column_position( columns-price )
+                                        exp = 2
+                                        msg = `PRICE must not move when CARRID leaves the first position` ).
+    cl_abap_unit_assert=>assert_equals( act = columns_of_list->get_column_position( columns-airline )
+                                        exp = 4
+                                        msg = `CARRID must be the fourth column` ).
+  ENDMETHOD.
+
+  METHOD when_position_twice_then_last.
+    " Given two positions for the same column, the lower one in the later call
+    DATA(list) = new_list( )->column( name     = columns-price
+                                      settings = VALUE #( position = 5 )
+                           )->column( name     = columns-price
+                                      settings = VALUE #( position = 2 ) ).
+    " When
+    list->prepare( ).
+    " Then
+    cl_abap_unit_assert=>assert_equals( act = list->salv->get_columns( )->get_column_position( columns-price )
+                                        exp = 2
+                                        msg = `The position of the last call must count` ).
+  ENDMETHOD.
+
+  METHOD when_unit_and_curr_then_raises.
+    " Given a fixed unit and a fixed currency for the same column
+    DATA(list) = new_list( )->column( name     = columns-occupied
+                                      settings = VALUE #( unit     = fixed_values-unit
+                                                          currency = fixed_values-currency ) ).
+    " When
+    DATA(message) = rejection_of( list ).
+    " Then
+    cl_abap_unit_assert=>assert_equals( act = message
+                                        exp = messages-fixed_and_column
+                                        msg = `A column with a unit and a currency must be rejected` ).
+  ENDMETHOD.
+
+  METHOD when_both_ref_cols_then_raises.
+    " Given a unit column and a currency column in two calls for the same column
+    DATA(list) = new_list( )->column( name     = columns-price
+                                      settings = VALUE #( unit_column = columns-currency )
+                           )->column( name     = columns-price
+                                      settings = VALUE #( currency_column = columns-currency ) ).
+    " When
+    DATA(message) = rejection_of( list ).
+    " Then
+    cl_abap_unit_assert=>assert_equals( act = message
+                                        exp = messages-fixed_and_column
+                                        msg = `A unit column next to a currency column must be rejected` ).
+  ENDMETHOD.
+
+  METHOD when_wide_checkbox_then_raises.
+    " Given REMARK, a column of type C length 20
+    DATA(list) = new_list( )->column( name     = columns-remark
+                                      settings = VALUE #( is_checkbox = abap_true ) ).
+    " When
+    DATA(message) = rejection_of( list ).
+    " Then
+    cl_abap_unit_assert=>assert_equals( act = message
+                                        exp = messages-checkbox_column
+                                        msg = `A checkbox column not of type C length 1 must be rejected` ).
+  ENDMETHOD.
+
+  METHOD when_stale_row_then_ignored.
+    " Given a table of two rows
+    DATA(handler) = NEW ltd_handler( ).
+    DATA(list) = new_list( )->handled_by( handler ).
+    " When SALV reports clicks on a third row, as after a row was deleted without a refresh
+    list->on_salv_link_click( row    = 3
+                              column = columns-airline ).
+    list->on_salv_double_click( row    = 3
+                                column = columns-airline ).
+    " Then
+    cl_abap_unit_assert=>assert_initial( act = handler->column
+                                         msg = `A click on a row the table does not have must not reach the handler` ).
+  ENDMETHOD.
+
+  METHOD when_no_text_icon_then_tooltip.
+    " Given a button for a container with a quick info only
+    DATA(list) = new_list( ).
+    " When
+    DATA(text) = list->container_button_text( VALUE #( name     = buttons-first
+                                                       settings = VALUE #( tooltip = `Quick info only` ) ) ).
+    " Then
+    cl_abap_unit_assert=>assert_equals( act = text
+                                        exp = `Quick info only`
+                                        msg = `A button without text and icon must show its quick info as text` ).
+  ENDMETHOD.
+
+  METHOD when_name_only_then_name_text.
+    " Given a button for a container with a name only
+    DATA(list) = new_list( ).
+    " When
+    DATA(text) = list->container_button_text( VALUE #( name = buttons-first ) ).
+    " Then
+    cl_abap_unit_assert=>assert_equals( act = text
+                                        exp = CONV string( buttons-first )
+                                        msg = `A button without text, icon and quick info must show its name` ).
+  ENDMETHOD.
+
+  METHOD when_icon_only_then_no_text.
+    " Given a button for a container with an icon and a quick info
+    DATA(list) = new_list( ).
+    " When
+    DATA(text) = list->container_button_text( VALUE #( name     = buttons-first
+                                                       settings = VALUE #( icon    = icon_okay
+                                                                           tooltip = `Quick info only` ) ) ).
+    " Then
+    cl_abap_unit_assert=>assert_initial( act = text
+                                         msg = `A button with an icon must stay a button with the icon only` ).
+  ENDMETHOD.
+
+  METHOD when_batch_then_no_buttons.
+    " Given a full screen list with own buttons that runs in a background job
+    DATA(list) = two_button_list( ).
+    list->in_background = abap_true.
+    " When
+    DATA(message) = rejection_of( list ).
+    " Then
+    cl_abap_unit_assert=>assert_initial( act = message
+                                         msg = `A list with own buttons in a background job must not be rejected` ).
+    cl_abap_unit_assert=>assert_initial( act = list->buttons
+                                         msg = `In a background job a list must have no own buttons` ).
+  ENDMETHOD.
+
+  METHOD when_hashed_table_then_raises.
+    " Given
+    DATA(hashed) = VALUE hashed_flights( ).
+    DATA(list) = zcl_salvage=>create( REF #( hashed ) ).
+    " When
+    DATA(message) = rejection_of( list ).
+    " Then
+    cl_abap_unit_assert=>assert_equals( act = message
+                                        exp = messages-unsupported_table
+                                        msg = `A hashed table must be rejected` ).
+  ENDMETHOD.
+
+  METHOD when_structure_ref_then_raises.
+    " Given a reference to one row instead of a table
+    DATA(one_flight) = VALUE flight( ).
+    DATA(list) = zcl_salvage=>create( REF #( one_flight ) ).
+    " When
+    DATA(message) = rejection_of( list ).
+    " Then
+    cl_abap_unit_assert=>assert_equals( act = message
+                                        exp = messages-unsupported_table
+                                        msg = `A reference to a structure must be rejected` ).
+  ENDMETHOD.
+
+  METHOD when_bad_total_col_then_raises.
+    " Given
+    DATA(list) = new_list( )->total( columns-unknown ).
+    " When
+    DATA(message) = rejection_of( list ).
+    " Then
+    cl_abap_unit_assert=>assert_equals( act = message
+                                        exp = messages-unknown_column
+                                        msg = `TOTAL of an unknown column must be rejected` ).
+  ENDMETHOD.
+
+  METHOD when_unknown_light_then_raises.
+    " Given
+    DATA(list) = new_list( )->lights_from( columns-unknown ).
+    " When
+    DATA(message) = rejection_of( list ).
+    " Then
+    cl_abap_unit_assert=>assert_equals( act = message
+                                        exp = messages-unknown_column
+                                        msg = `An unknown light column must be reported as unknown` ).
+  ENDMETHOD.
+
+  METHOD when_total_twice_then_raises.
+    " Given
+    DATA(list) = new_list( )->total( columns-occupied )->total( columns-occupied ).
+    " When
+    DATA(message) = rejection_of( list ).
+    " Then
+    cl_abap_unit_assert=>assert_equals( act = message
+                                        exp = messages-total_error
+                                        msg = `Two totals of the same column must be rejected` ).
+  ENDMETHOD.
+
+  METHOD when_lower_option_then_valid.
+    " Given a comparison in lower case
+    DATA(list) = new_list( )->filter_by( name     = columns-airline
+                                         settings = VALUE #( option = 'bt'
+                                                             low    = between-low
+                                                             high   = between-high ) ).
+    " When
+    list->prepare( ).
+    " Then
+    cl_abap_unit_assert=>assert_equals( act = first_condition_of( list )->get_option( )
+                                        exp = between-option
+                                        msg = `A comparison in lower case must be handed to SALV in upper case` ).
+  ENDMETHOD.
+
+  METHOD when_buttons_then_ten_slots.
+    " Given a full screen list with two own buttons
+    DATA(list) = two_button_list( ).
+    " When the texts of all slots of GUI status SALVAGE_FULLSCREEN are built
+    DATA(texts) = list->fullscreen_texts( ).
+    " Then
+    cl_abap_unit_assert=>assert_not_initial( act = texts-f02
+                                             msg = `The slot of the second button must have its text` ).
+    cl_abap_unit_assert=>assert_initial( act = texts-f03
+                                         msg = `The first slot without button must have no text` ).
+    cl_abap_unit_assert=>assert_initial( act = texts-f10
+                                         msg = `The last slot of the status must exist and have no text` ).
+  ENDMETHOD.
+
+  METHOD when_late_handler_then_no_dump.
+    " Given a list that is on the screen, as a list in a container after DISPLAY
+    DATA(handler) = NEW ltd_handler( ).
+    DATA(list) = new_list( ).
+    list->prepare( ).
+    list->is_open = abap_true.
+    " When the handler is set only now, and SALV reports a click
+    list->handled_by( handler ).
+    list->on_salv_link_click( row    = 1
+                              column = columns-airline ).
+    " Then
+    cl_abap_unit_assert=>assert_equals( act = handler->column
+                                        exp = columns-airline
+                                        msg = `A handler set after DISPLAY must get the clicks` ).
+  ENDMETHOD.
+
+  METHOD when_lower_program_then_upper.
+    " Given the program of the layouts in lower case
+    DATA(list) = new_list( )->layout( VALUE #( program = 'zsalvage_shared_list' ) ).
+    " When
+    list->prepare( ).
+    " Then
+    cl_abap_unit_assert=>assert_equals( act = list->salv->get_layout( )->get_key( )-report
+                                        exp = layout_values-program
+                                        msg = `The program of the layout key must be in upper case` ).
   ENDMETHOD.
 ENDCLASS.

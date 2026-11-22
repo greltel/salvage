@@ -2,7 +2,8 @@
 # One line per object and file: <object> <file pattern> <reason>
 # Every line needs a reason, and the README (Limitations) names the same objects.
 
-IF_SALV_C_REFRESH   src/zcl_salvage.clas.abap              refresh( ) needs the full refresh mode; no classic object chooses it
-CL_SALV_SELOPT      src/zcl_salvage.clas.testclasses.abap  the unit tests read filter conditions back
-IF_SALV_C_FUNCTION  src/zcl_salvage.clas.testclasses.abap  the unit tests name standard functions by their codes
-IF_SALV_C_SORT      src/zcl_salvage.clas.testclasses.abap  the unit tests compare the private sort constants with SAP's
+IF_SALV_C_REFRESH         src/zcl_salvage.clas.abap              refresh( ) needs the full refresh mode; no classic object chooses it
+CX_SALV_OBJECT_NOT_FOUND  src/zcl_salvage.clas.abap              display( ) reports a missing GUI status with message 024; SALV raises no classic exception for it
+CL_SALV_SELOPT            src/zcl_salvage.clas.testclasses.abap  the unit tests read filter conditions back
+IF_SALV_C_FUNCTION        src/zcl_salvage.clas.testclasses.abap  the unit tests name standard functions by their codes
+IF_SALV_C_SORT            src/zcl_salvage.clas.testclasses.abap  the unit tests compare the private sort constants with SAP's
