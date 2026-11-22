@@ -155,7 +155,7 @@ a request of their own that does not go to production.
 The demos read the flight data model (`SCARR`, `SFLIGHT`). If its tables are empty, fill them
 with report `SAPBC_DATA_GENERATOR`.
 
-The constant `ZCL_SALVAGE=>VERSION` tells which version a system has, for example `1.5.0`: the
+The constant `ZCL_SALVAGE=>VERSION` tells which version a system has, for example `1.6.0`: the
 [release](https://github.com/greltel/salvage/releases) tag without the `v`. For a production
 system, install a release rather than the latest commit of `main`: switch the abapGit repository
 to the release tag before the pull.
@@ -633,7 +633,7 @@ returned by either: SALV reports their cells with row 0 or below, which is no ro
 Whole columns that users select by clicking the column header come from `selected_columns( )`
 only; a selected column stands for all its rows.
 
-Version: `zcl_salvage=>version`, the installed version as `major.minor.patch`, for example `1.5.0`.
+Version: `zcl_salvage=>version`, the installed version as `major.minor.patch`, for example `1.6.0`.
 
 ### Messages of class `ZSALVAGE`
 
