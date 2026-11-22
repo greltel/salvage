@@ -1,0 +1,12 @@
+# Keeps the actions of the workflows current: one pull request a month with all updates.
+# The version of abaplint is not covered: it is pinned in .github/workflows/abaplint.yml and in
+# the README, and is raised by hand together with abaplint.json.
+version: 2
+updates:
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: monthly
+    groups:
+      actions:
+        patterns: ["*"]
