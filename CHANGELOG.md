@@ -6,6 +6,11 @@ All notable changes to SALVage are documented here. The format follows
 
 ## [Unreleased]
 
+## [1.6.1] - 2026-11-22
+
+Patch release: an edit mask whose conversion exit does not exist gets a message instead of a
+runtime error. Calls that worked do not change.
+
 ### Added
 
 - Message `ZSALVAGE 026` "Column &1: function module &2 of the edit mask does not exist". See
