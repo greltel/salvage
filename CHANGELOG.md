@@ -50,6 +50,11 @@ message. Existing calls do not change, except for what was a mistake before: see
   `lights_from( )`, a total given twice, a comparison in lower case, the texts of all ten button
   slots, a handler set after `display( )`, and a layout program in lower case. The tests no
   longer depend on whether ABAP Unit runs in a background job.
+- `CONTRIBUTING.md` and a pull request template (`.github/pull_request_template.md`). GitHub
+  checks the syntax and the SAP objects but cannot run ABAP, so the template asks for the SAP
+  release the change was tested on and for the result of the unit tests.
+- `.github/dependabot.yml`: one pull request a month with the updates of the actions that the
+  workflows use.
 
 ### Changed
 
@@ -97,6 +102,16 @@ message. Existing calls do not change, except for what was a mistake before: see
   of its name, which was looked up again in every row.
 - `.github/scripts/classic_api_exceptions.txt`: `CX_SALV_OBJECT_NOT_FOUND` for
   `ZCL_SALVAGE`; see Fixed and Limitations in the README.
+- GitHub workflows `abaplint` and `classic-api` run for pull requests and for commits on `main`.
+  Before, they ran for every push as well, twice for each commit of a pull request. A newer
+  commit cancels the run of the one before it, the token of the jobs can only read the
+  repository, and a job stops after 10 minutes.
+- Workflow `classic-api` also runs every Monday and on request ("Run workflow"): it reads the
+  Cloudification Repository as it is that day, so a classification that SAP changes shows on
+  `main` before it stops a pull request.
+- Branch `main` takes changes only through pull requests whose checks `abaplint` and
+  `classic-api` are green; release tags can be neither moved nor deleted (rulesets of the
+  repository).
 
 ### Fixed
 

@@ -1,12 +1,32 @@
 name: classic-api
 
+# Runs for every pull request and for every commit that reaches main. The ruleset of main
+# requires the job "classic-api": keep the job name, and add no "paths" filter - a required
+# check that does not run blocks the merge for good.
+#
+# The check reads SAP's Cloudification Repository as it is today, so it can turn red without
+# a change in this repository: SAP reclassifies an object, or renames a file. The weekly run
+# shows that on main before it stops a pull request; "Run workflow" on the Actions tab
+# (workflow_dispatch) repeats the check at any time.
 on:
   push:
+    branches: [main]
   pull_request:
+  schedule:
+    - cron: "17 5 * * 1" # Mondays 05:17 UTC
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
   classic-api:
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     steps:
       - uses: actions/checkout@v4
       - name: Get the API classifications of SAP's Cloudification Repository

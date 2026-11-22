@@ -1,12 +1,24 @@
 name: abaplint
 
+# Runs for every pull request and for every commit that reaches main. The ruleset of main
+# requires the job "abaplint": keep the job name, and add no "paths" filter - a required
+# check that does not run blocks the merge for good.
 on:
   push:
+    branches: [main]
   pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
   abaplint:
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4

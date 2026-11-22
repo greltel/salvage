@@ -799,19 +799,22 @@ Report bugs and propose features through the
 [issue forms](https://github.com/greltel/salvage/issues/new/choose). The bug report asks for what a
 fix needs: `ZCL_SALVAGE=>VERSION`, the SAP release, the steps, the code and the message or dump.
 
-Pull requests are welcome. Branch `main` is protected: changes reach it only through a pull
-request, and only when the abaplint check of the pull request is green. Before you open one:
+Pull requests are welcome. Branch `main` is protected by a ruleset: changes reach it only
+through a pull request, and only when the checks `abaplint` and `classic-api` of the pull
+request are green and its branch is up to date with `main`. GitHub cannot run ABAP, so the
+[pull request template](.github/pull_request_template.md) asks for the release you tested on and
+the result of the unit tests. Before you open one:
 
 1. Keep the syntax at ABAP 7.50: `abaplint.json` checks against release 7.50 and rejects newer
    statements such as `RAISE EXCEPTION NEW` (7.52) or `ENUM` (7.51).
 2. Run abaplint: `npx @abaplint/cli@2.120.70 abaplint.json`, the version the GitHub workflow runs on
-   every push (older releases do not know `DEFAULT IGNORE` and report the demos).
+   every pull request (older releases do not know `DEFAULT IGNORE` and report the demos).
 3. Use only SAP objects that are classic API. The workflow `classic-api` looks up the classes,
    interfaces and function modules that the sources name in the Cloudification Repository, on
-   every push; the head of `.github/scripts/check_classic_api.py` says what it checks and how to
-   run it. An object that is needed all the same goes into
-   `.github/scripts/classic_api_exceptions.txt` with its reason, and into
-   [Limitations](#limitations). The check does not see the ABAP Dictionary types and the classes
+   every pull request and once a week on `main`, because SAP can change a classification; the
+   head of `.github/scripts/check_classic_api.py` says what it checks and how to run it. An
+   object that is needed all the same goes into `.github/scripts/classic_api_exceptions.txt`
+   with its reason, and into [Limitations](#limitations). The check does not see the ABAP Dictionary types and the classes
    behind a method chain; look those up in ADT (API State).
 4. Run the unit tests of `ZCL_SALVAGE` (Ctrl+Shift+F10 in ADT) and add a test for every new check
    or setting. The tests call the private method `prepare( )`, so they need no screen.
@@ -841,7 +844,7 @@ request, and only when the abaplint check of the pull request is green. Before y
 2. Move the entries under `[Unreleased]` in `CHANGELOG.md` to a section for the new version.
 3. Merge into `main`, pull into a test system, run the unit tests and ATC.
 4. Publish a release with the tag `v` plus the version, for example `v1.2.0`, on that commit.
-   Release tags are never moved or deleted.
+   Release tags are never moved or deleted; a ruleset of the repository rejects both.
 
 ## License
 
