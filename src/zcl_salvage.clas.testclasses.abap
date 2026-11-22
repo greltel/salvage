@@ -293,10 +293,10 @@ CLASS ltc_salvage DEFINITION FINAL FOR TESTING RISK LEVEL HARMLESS DURATION SHOR
     METHODS when_no_status_then_raises     FOR TESTING.
     METHODS when_unchecked_box_then_shown  FOR TESTING RAISING cx_static_check.
     METHODS when_unknown_code_then_ignored FOR TESTING.
-    METHODS when_position_beyond_then_last FOR TESTING.
-    METHODS when_two_positions_then_both   FOR TESTING.
-    METHODS when_left_moves_then_both_fit  FOR TESTING.
-    METHODS when_position_twice_then_last  FOR TESTING.
+    METHODS when_position_beyond_then_last FOR TESTING RAISING cx_static_check.
+    METHODS when_two_positions_then_both   FOR TESTING RAISING cx_static_check.
+    METHODS when_left_moves_then_both_fit  FOR TESTING RAISING cx_static_check.
+    METHODS when_position_twice_then_last  FOR TESTING RAISING cx_static_check.
     METHODS when_unit_and_curr_then_raises FOR TESTING.
     METHODS when_both_ref_cols_then_raises FOR TESTING.
     METHODS when_wide_checkbox_then_raises FOR TESTING.
@@ -662,19 +662,20 @@ CLASS ltc_salvage IMPLEMENTATION.
   ENDMETHOD.
 
   METHOD when_text_then_all_headers.
-    " Given
+    " Given a text that is longer than a short header
+    DATA(header) = `Airline of the flight`.
     DATA(list) = new_list( )->column( name     = columns-airline
-                                      settings = VALUE #( text = `Airline of the flight` ) ).
+                                      settings = VALUE #( text = header ) ).
     " When
     list->prepare( ).
     " Then
     DATA(column) = column_of( list = list
                               name = columns-airline ).
     cl_abap_unit_assert=>assert_equals( act = column->get_long_text( )
-                                        exp = CONV scrtext_l( `Airline of the flight` )
+                                        exp = CONV scrtext_l( header )
                                         msg = `The text must be the long header` ).
     cl_abap_unit_assert=>assert_equals( act = column->get_short_text( )
-                                        exp = CONV scrtext_s( `Airline of the flight` )
+                                        exp = CONV scrtext_s( header )
                                         msg = `The text, cut to 10 characters, must be the short header` ).
   ENDMETHOD.
 
